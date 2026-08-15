@@ -1,0 +1,4 @@
+import { beforeEach, describe, expect, it } from "vitest"
+import { mockOrganizationSettingsService as service } from "@/features/organization-settings/services/mock-organization-settings-service"
+import { mockScenarioController } from "@/features/organization-settings/services/mock-scenario-controller"
+describe("access service", () => { beforeEach(() => { service.reset(); mockScenarioController.setLatency(0) }); it("derives effective permissions from active roles", async () => expect(await service.getEffectivePermissions("user-1")).toContain("settings.view")); it("replaces role permissions atomically", async () => { const role = await service.get("roles", "role-branch"); const next = await service.replaceRolePermissions(role.id, ["dashboard.view", "users.view", "users.update"], role.version); expect(next.permissionIds).toContain("users.update") }) })

@@ -1,0 +1,3 @@
+import { StatCard } from "@/shared/components/layout/stat-card"
+import type { TicketDashboard as Dashboard } from "../types/projections"
+export function TicketDashboard({ data }: { data: Dashboard }) { return <section aria-label="ملخص التذاكر" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"><StatCard label="تذاكري" value={String(data.mine)} /><StatCard label="تذاكر فريقي" value={String(data.team)} /><StatCard label="المفتوحة" value={String(data.open)} /><StatCard label="بانتظار رد" value={String(data.waiting)} /><StatCard label="الحرجة" value={String(data.critical)} /><StatCard label="المغلقة اليوم" value={String(data.closedToday)} /></section> }

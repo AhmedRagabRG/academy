@@ -1,0 +1,62 @@
+import type {
+  AssignmentCommand,
+  InboxListQuery,
+  ReplyCommand,
+} from "../types/commands"
+import type {
+  ConversationStatus,
+  CursorPage,
+  ConversationId,
+  EmployeeId,
+  NoteId,
+  TagId,
+} from "../types/common"
+import type {
+  ConversationDetail,
+  ConversationView,
+  InboxDashboard,
+} from "../types/projections"
+import type { InternalNote } from "../types/domain"
+import type { Attachment } from "../types/domain"
+
+export interface InboxLookups {
+  platforms: { id: string; label: string }[]
+  statuses: { id: ConversationStatus; label: string }[]
+  tags: { id: string; label: string; color: string }[]
+  branches: { id: string; label: string }[]
+  teams: { id: string; label: string }[]
+  employees: { id: string; label: string }[]
+}
+export interface InboxService {
+  list(
+    query: InboxListQuery,
+    signal?: AbortSignal
+  ): Promise<CursorPage<ConversationView>>
+  detail(id: ConversationId, signal?: AbortSignal): Promise<ConversationDetail>
+  markRead(id: ConversationId): Promise<ConversationDetail>
+  dashboard(
+    query: InboxListQuery,
+    signal?: AbortSignal
+  ): Promise<InboxDashboard>
+  lookups(signal?: AbortSignal): Promise<InboxLookups>
+  stageAttachment(file: File, signal?: AbortSignal): Promise<Attachment>
+  sendReply(command: ReplyCommand): Promise<ConversationDetail>
+  assign(command: AssignmentCommand): Promise<ConversationDetail>
+  changeStatus(
+    id: ConversationId,
+    status: ConversationStatus
+  ): Promise<ConversationDetail>
+  toggleTag(id: ConversationId, tagId: TagId): Promise<ConversationDetail>
+  archive(id: ConversationId): Promise<ConversationDetail>
+  delete(id: ConversationId): Promise<void>
+  restore(id: ConversationId): Promise<ConversationDetail>
+  addNote(id: ConversationId, content: string): Promise<InternalNote>
+  editNote(
+    id: ConversationId,
+    noteId: NoteId,
+    content: string
+  ): Promise<InternalNote>
+  deleteNote(id: ConversationId, noteId: NoteId): Promise<void>
+  setActor(employeeId: EmployeeId): void
+  reset(): void
+}

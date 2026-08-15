@@ -1,0 +1,4 @@
+import { expect, test } from "@playwright/test"
+import { signIn } from "../helpers/auth"
+test("settings are available in sidebar navigation", async ({ page }) => { await signIn(page); if ((page.viewportSize()?.width ?? 1200) < 1024) await page.getByRole("button", { name: "فتح التنقل" }).click(); await expect(page.getByRole("link", { name: "ملف المؤسسة" })).toBeVisible(); await page.getByRole("link", { name: "الفروع" }).click(); await expect(page).toHaveURL(/settings\/branches/) })
+test("unknown routes show the branded recovery page", async ({ page }) => { await page.goto("/not-a-real-route"); await expect(page.getByRole("heading", { name: "هذه الصفحة خارج المسار" })).toBeVisible(); await expect(page.getByRole("link", { name: "العودة إلى مساحة العمل" })).toBeVisible(); await expect(page.getByRole("link", { name: "المؤسسة والإعدادات" })).toBeVisible() })

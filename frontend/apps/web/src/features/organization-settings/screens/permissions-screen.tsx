@@ -1,0 +1,11 @@
+"use client"
+import { useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { Card } from "@/shared/components/layout/card"
+import { Dropdown } from "@/shared/components/forms/dropdown"
+import { AdministrativeQueryState } from "../components/administrative-query-state"
+import { SettingsPage } from "../components/settings-page"
+import { PermissionMatrixForm } from "../forms/permission-matrix-form"
+import { useEntityList, usePermissionCatalog, useReplaceRolePermissions } from "../hooks/use-access-management"
+import { defaultListQuery } from "../utils/list-query-state"
+export function PermissionsScreen() { const params = useSearchParams(); const roles = useEntityList("roles", { ...defaultListQuery, pageSize: 50 }); const catalog = usePermissionCatalog(); const [roleId, setRoleId] = useState(params.get("roleId") ?? ""); const selectedRoleId = roleId || roles.data?.items[0]?.id || ""; const role = roles.data?.items.find((item) => item.id === selectedRoleId); const replace = useReplaceRolePermissions(); return <SettingsPage title="مصفوفة الصلاحيات" description="اختر دورًا ثم حدّد صلاحياته حسب الوحدة والإجراء. هذه المحاكاة تتحكم في واجهة المستخدم وليست حدًا أمنيًا."><AdministrativeQueryState loading={roles.isLoading || catalog.isLoading} error={roles.error ?? catalog.error}>{roles.data && catalog.data && <div className="space-y-6"><Card><label htmlFor="permission-role" className="mb-2 block text-sm font-medium">الدور</label><Dropdown id="permission-role" value={selectedRoleId} onChange={(event) => setRoleId(event.target.value)} options={roles.data.items.map((item) => ({ value: item.id, label: item.name }))} /></Card>{role && <Card><PermissionMatrixForm key={role.id} role={role} groups={catalog.data} pending={replace.isPending} onSubmit={(permissionIds) => replace.mutate({ roleId: role.id, permissionIds, version: role.version })} /></Card>}</div>}</AdministrativeQueryState></SettingsPage> }

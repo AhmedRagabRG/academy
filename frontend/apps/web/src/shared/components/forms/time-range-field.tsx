@@ -1,0 +1,3 @@
+"use client"
+import { useFormContext } from "react-hook-form"
+export function TimeRangeField({ startName, endName, label }: { startName: string; endName: string; label: string }) { const { register } = useFormContext(); return <fieldset className="space-y-2"><legend className="text-sm font-medium">{label}</legend><div className="grid grid-cols-2 gap-3"><input aria-label="وقت البداية" type="time" {...register(startName)} className="border-input h-10 rounded-lg border px-3" /><input aria-label="وقت النهاية" type="time" {...register(endName)} className="border-input h-10 rounded-lg border px-3" /></div></fieldset> }

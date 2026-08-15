@@ -1,0 +1,180 @@
+openapi: 3.0.3
+info:
+  title: Program Batches API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+security:
+  - accessCookie: []
+paths:
+  /programs/{programId}/batches:
+    get:
+      summary: List program batches
+      parameters:
+        - $ref: '#/components/parameters/ProgramId'
+        - { name: search, in: query, schema: { type: string } }
+        - { name: academicYearId, in: query, schema: { type: string, format: uuid } }
+        - { name: intakeId, in: query, schema: { type: string, format: uuid } }
+        - { name: branchId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: sortBy, in: query, schema: { enum: [updatedAt, name, code, status] } }
+        - { name: sortOrder, in: query, schema: { enum: [asc, desc] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { $ref: '#/components/responses/BatchList' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create a draft batch
+      parameters: [{ $ref: '#/components/parameters/ProgramId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchInput' }
+      responses:
+        '201': { $ref: '#/components/responses/BatchDetail' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /programs/{programId}/batches/lookups:
+    get:
+      summary: Read bounded editor lookups
+      parameters: [{ $ref: '#/components/parameters/ProgramId' }]
+      responses:
+        '200': { description: Bounded lookup envelope }
+  /programs/{programId}/batches/{batchId}:
+    get:
+      summary: Read batch details
+      parameters:
+        - { $ref: '#/components/parameters/ProgramId' }
+        - { $ref: '#/components/parameters/BatchId' }
+      responses:
+        '200': { $ref: '#/components/responses/BatchDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      summary: Replace mutable batch configuration
+      parameters:
+        - { $ref: '#/components/parameters/ProgramId' }
+        - { $ref: '#/components/parameters/BatchId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/BatchInput' }
+                - type: object
+                  required: [expectedVersion]
+                  properties: { expectedVersion: { type: integer, minimum: 1 } }
+      responses:
+        '200': { $ref: '#/components/responses/BatchDetail' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /programs/{programId}/batches/{batchId}/status:
+    patch:
+      summary: Transition batch lifecycle status
+      parameters:
+        - { $ref: '#/components/parameters/ProgramId' }
+        - { $ref: '#/components/parameters/BatchId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toStatus, expectedVersion]
+              properties:
+                toStatus: { $ref: '#/components/schemas/BatchStatus' }
+                reason: { type: string }
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/BatchDetail' }
+        '409': { $ref: '#/components/responses/Error' }
+  /programs/{programId}/batches/{batchId}/readiness:
+    get:
+      summary: Evaluate registration readiness
+      parameters:
+        - { $ref: '#/components/parameters/ProgramId' }
+        - { $ref: '#/components/parameters/BatchId' }
+      responses:
+        '200': { description: Readiness envelope }
+  /batches/{batchId}/eligibility:
+    get:
+      summary: Evaluate Admissions eligibility
+      parameters:
+        - { $ref: '#/components/parameters/BatchId' }
+        - { name: branchId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: today, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Eligibility envelope }
+        '503': { $ref: '#/components/responses/Error' }
+  /batches/{batchId}/lifecycle:
+    get:
+      summary: Read immutable lifecycle history
+      parameters: [{ $ref: '#/components/parameters/BatchId' }]
+      responses:
+        '200': { description: Lifecycle envelope }
+  /batches/{batchId}/financial-revisions:
+    get:
+      summary: Read immutable financial revisions
+      parameters: [{ $ref: '#/components/parameters/BatchId' }]
+      responses:
+        '200': { description: Financial revision envelope }
+components:
+  securitySchemes:
+    accessCookie: { type: apiKey, in: cookie, name: access_token }
+  parameters:
+    ProgramId: { name: programId, in: path, required: true, schema: { type: string, format: uuid } }
+    BatchId: { name: batchId, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    BatchStatus: { type: string, enum: [draft, registration-open, registration-closed, studying, graduated, archived] }
+    Money:
+      type: object
+      required: [amount, currency, precision]
+      properties:
+        amount: { type: string, pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        precision: { type: integer, minimum: 0, maximum: 6 }
+    BatchInput:
+      type: object
+      additionalProperties: false
+      required: [name, code, academicYearId, intakeId, description, maximumStudents, schedule, financialProfile, branchAssignments]
+      properties:
+        name:
+          type: object
+          required: [ar]
+          properties: { ar: { type: string }, en: { type: string } }
+        code: { type: string }
+        academicYearId: { type: string, format: uuid }
+        intakeId: { type: string, format: uuid }
+        description: { type: string }
+        maximumStudents: { type: integer, minimum: 1 }
+        schedule: { type: object }
+        financialProfile:
+          type: object
+          required: [programPrice, registrationFee, installmentsEnabled, installmentPlans, offers]
+          properties:
+            programPrice: { $ref: '#/components/schemas/Money' }
+            registrationFee: { $ref: '#/components/schemas/Money' }
+            installmentsEnabled: { type: boolean }
+            installmentPlans: { type: array, items: { type: object } }
+            offers: { type: array, items: { type: object } }
+        branchAssignments: { type: array, minItems: 1, items: { type: object } }
+    Batch: { type: object, required: [id, programId, code, status, version, capacity] }
+    ErrorEnvelope:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error: { type: object, required: [code, message] }
+  responses:
+    BatchDetail:
+      description: Program Batch success envelope
+      content: { application/json: { schema: { type: object, properties: { success: { type: boolean }, data: { $ref: '#/components/schemas/Batch' } } } } }
+    BatchList:
+      description: Paginated Program Batch success envelope
+      content: { application/json: { schema: { type: object } } }
+    Error:
+      description: Closed Arabic error envelope
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+

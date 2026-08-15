@@ -1,0 +1,7 @@
+"use client"
+import { Button } from "@workspace/ui/components/button"
+import type { TicketConfiguration } from "../types/domain"
+import type { TicketDetail } from "../types/projections"
+export function TicketAssignmentPanel({ ticket, config, pending, onAssign }: { ticket: TicketDetail; config: TicketConfiguration; pending?: boolean; onAssign: (v: { teamId?: string; employeeId?: string }) => void }) {
+  return <section><h2 className="mb-3 text-lg font-bold">الإسناد</h2><form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); const data = new FormData(e.currentTarget); onAssign({ teamId: String(data.get("teamId") || "") || undefined, employeeId: String(data.get("employeeId") || "") || undefined }) }}><label className="grid gap-1 text-sm">الفريق<select name="teamId" defaultValue={ticket.teamId ?? ""} className="border-border bg-background rounded-lg border p-2"><option value="">بدون فريق</option>{config.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label><label className="grid gap-1 text-sm">الموظف<select name="employeeId" defaultValue={ticket.employeeId ?? ""} className="border-border bg-background rounded-lg border p-2"><option value="">غير مسند</option>{config.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label><Button type="submit" disabled={pending} className="sm:col-span-2">حفظ الإسناد</Button></form></section>
+}

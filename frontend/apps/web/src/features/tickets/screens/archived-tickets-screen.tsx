@@ -1,0 +1,12 @@
+"use client"
+import Link from "next/link"
+import { PageContainer } from "@/shared/components/layout/page-container"
+import { PageHeader } from "@/shared/components/layout/page-header"
+import { LoadingState } from "@/shared/components/states/loading-state"
+import { ErrorState } from "@/shared/components/states/error-state"
+import { EmptyState } from "@/shared/components/states/empty-state"
+import { Card } from "@workspace/ui/components/card"
+import { Button } from "@workspace/ui/components/button"
+import { useTicketBoard } from "../hooks/use-ticket-board"
+import { useTicketMutations } from "../hooks/use-ticket-mutations"
+export function ArchivedTicketsScreen() { const state = useTicketBoard("", {}, "updated", "archived"), actions = useTicketMutations(state.actor, state.scope); return <PageContainer><PageHeader title="التذاكر المؤرشفة" description="راجع التذاكر الخارجة من لوحة العمل واستعد ما يلزم." actions={<Link className="border-border rounded-lg border px-3 py-2 text-sm" href="/tickets">العودة إلى اللوحة</Link>} />{state.list.isLoading && <LoadingState />}{state.list.error && <ErrorState message={state.list.error.message} />}{state.list.data?.items.length === 0 && <EmptyState title="لا توجد تذاكر مؤرشفة" />}<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{state.list.data?.items.map((ticket) => <Card key={ticket.id} className="space-y-3 p-4"><Link className="font-semibold hover:text-primary" href={`/tickets/${ticket.id}`}>{ticket.title}</Link><bdi dir="ltr" className="text-muted-foreground block text-xs">{ticket.number}</bdi><div className="flex gap-2"><Button size="sm" onClick={() => actions.restore.mutate({ id: ticket.id, version: ticket.version })}>استعادة</Button><Button size="sm" variant="destructive" onClick={() => actions.remove.mutate({ id: ticket.id })}>حذف</Button></div></Card>)}</div></PageContainer> }

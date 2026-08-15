@@ -1,0 +1,26 @@
+ALTER TABLE "Account" ADD COLUMN "phone" TEXT NOT NULL DEFAULT '+2000000000', ADD COLUMN "position" TEXT, ADD COLUMN "departmentId" UUID, ADD COLUMN "avatar" JSONB, ADD COLUMN "createdBy" UUID, ADD COLUMN "updatedBy" UUID;
+ALTER TABLE "Role" ADD COLUMN "description" TEXT NOT NULL DEFAULT '', ADD COLUMN "createdBy" UUID, ADD COLUMN "updatedBy" UUID;
+ALTER TABLE "RefreshToken" ADD COLUMN "device" TEXT NOT NULL DEFAULT 'Unknown device', ADD COLUMN "browser" TEXT NOT NULL DEFAULT 'Unknown browser', ADD COLUMN "ipAddress" TEXT NOT NULL DEFAULT 'unknown', ADD COLUMN "userAgent" TEXT, ADD COLUMN "lastActivityAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, ADD COLUMN "revokeReason" TEXT;
+
+CREATE TABLE "Permission" ("id" UUID NOT NULL, "key" TEXT NOT NULL, "moduleKey" TEXT NOT NULL, "actionKey" TEXT NOT NULL, "label" TEXT NOT NULL, "description" TEXT NOT NULL, "displayOrder" INTEGER NOT NULL, "active" BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ NOT NULL, CONSTRAINT "Permission_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "AccountRole" ("accountId" UUID NOT NULL, "roleId" UUID NOT NULL, "assignedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, "assignedBy" UUID, CONSTRAINT "AccountRole_pkey" PRIMARY KEY ("accountId","roleId"));
+CREATE TABLE "RolePermission" ("roleId" UUID NOT NULL, "permissionId" UUID NOT NULL, "assignedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, "assignedBy" UUID, CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("roleId","permissionId"));
+INSERT INTO "AccountRole" ("accountId","roleId") SELECT "id","roleId" FROM "Account";
+ALTER TABLE "Account" DROP CONSTRAINT "Account_roleId_fkey";
+DROP INDEX "Account_roleId_idx";
+ALTER TABLE "Account" DROP COLUMN "roleId";
+ALTER TABLE "Role" DROP COLUMN "permissionKeys";
+CREATE UNIQUE INDEX "Permission_key_key" ON "Permission"("key");
+CREATE INDEX "Permission_moduleKey_displayOrder_idx" ON "Permission"("moduleKey","displayOrder");
+CREATE INDEX "Account_status_idx" ON "Account"("status");
+CREATE INDEX "Account_departmentId_idx" ON "Account"("departmentId");
+CREATE INDEX "AccountRole_roleId_idx" ON "AccountRole"("roleId");
+CREATE INDEX "RolePermission_permissionId_idx" ON "RolePermission"("permissionId");
+DROP INDEX "RefreshToken_accountId_idx";
+DROP INDEX "RefreshToken_expiresAt_idx";
+CREATE INDEX "RefreshToken_accountId_revokedAt_expiresAt_idx" ON "RefreshToken"("accountId","revokedAt","expiresAt");
+CREATE INDEX "RefreshToken_lastActivityAt_idx" ON "RefreshToken"("lastActivityAt");
+ALTER TABLE "AccountRole" ADD CONSTRAINT "AccountRole_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "AccountRole" ADD CONSTRAINT "AccountRole_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

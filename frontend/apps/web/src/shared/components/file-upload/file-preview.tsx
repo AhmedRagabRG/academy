@@ -1,0 +1,2 @@
+import { FileText, X } from "lucide-react"
+export function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) { return <div className="border-border flex items-center gap-3 rounded-lg border p-3"><FileText className="size-5" /><span className="min-w-0 flex-1 truncate" dir="ltr">{file.name}</span><button type="button" onClick={onRemove} aria-label={`إزالة ${file.name}`}><X className="size-4" /></button></div> }

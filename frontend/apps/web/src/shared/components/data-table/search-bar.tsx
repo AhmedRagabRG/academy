@@ -1,0 +1,2 @@
+import { Search } from "lucide-react"
+export function SearchBar({ value, onChange, placeholder = "بحث" }: { value: string; onChange: (value: string) => void; placeholder?: string }) { return <label className="border-input bg-background flex h-10 items-center gap-2 rounded-lg border px-3"><Search className="text-muted-foreground size-4" aria-hidden /><span className="sr-only">{placeholder}</span><input type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent outline-none" /></label> }

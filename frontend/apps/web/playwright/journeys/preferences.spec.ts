@@ -1,0 +1,2 @@
+import { expect, test } from "@playwright/test"
+test("theme preference persists", async ({ page }) => { await page.goto("/login"); await page.getByLabel("البريد الإلكتروني").fill("employee@alsalam.edu"); await page.locator("#password").fill("demo1234"); await page.getByRole("button", { name: "تسجيل الدخول" }).click(); await page.getByRole("button", { name: "داكن" }).click(); await expect(page.locator("html")).toHaveClass(/dark/); await page.reload(); await expect(page.locator("html")).toHaveClass(/dark/) })

@@ -1,0 +1,3 @@
+"use client"
+import { useFormContext } from "react-hook-form"
+export function MultiSelectField({ name, label, options }: { name: string; label: string; options: readonly { value: string; label: string }[] }) { const { register, formState: { errors } } = useFormContext(); const error = errors[name]?.message; return <fieldset className="space-y-2"><legend className="text-sm font-medium">{label}</legend><div className="grid gap-2 sm:grid-cols-2">{options.map((option) => <label key={option.value} className="flex min-h-11 items-center gap-2 rounded-lg border px-3"><input type="checkbox" value={option.value} {...register(name)} />{option.label}</label>)}</div>{typeof error === "string" && <p role="alert" className="text-destructive text-sm">{error}</p>}</fieldset> }

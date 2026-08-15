@@ -1,0 +1,2428 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProductTypeIdentity {
+  PROFESSIONAL_PROGRAM
+  PROFESSIONAL_DIPLOMA
+  TRAINING_COURSE
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  HIDDEN
+  CLOSED
+  ARCHIVED
+}
+
+enum ProductFieldKind {
+  NUMBER
+  OPTION
+  BOOLEAN
+  REFERENCE
+}
+
+enum ProductBranchRole {
+  REGISTRATION
+  STUDY
+  GENERAL
+}
+
+enum ProductContentKind {
+  FAQ
+  ADMISSION_REQUIREMENT
+  REQUIRED_DOCUMENT
+}
+
+enum ProductAssetKind {
+  PRIMARY
+  GALLERY
+  BROCHURE
+  VIDEO
+}
+
+enum BatchStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  STUDYING
+  GRADUATED
+  ARCHIVED
+}
+
+enum BatchBranchRole {
+  REGISTRATION
+  STUDY
+}
+
+enum InstallmentBasis {
+  AMOUNT
+  PERCENTAGE
+}
+
+enum CoveredCharge {
+  PROGRAM_PRICE
+  REGISTRATION_FEE
+  COMBINED
+}
+
+enum BatchOfferKind {
+  DISCOUNT
+  SCHOLARSHIP
+}
+
+enum BatchValueType {
+  AMOUNT
+  PERCENTAGE
+}
+
+enum ConfigurationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OrganizationContactType {
+  EMAIL
+  PHONE
+}
+
+enum ApplicantStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AdmissionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ENROLLED
+  ARCHIVED
+}
+
+enum AdmissionOfferingKind {
+  PROFESSIONAL_PROGRAM
+  PROFESSIONAL_DIPLOMA
+  TRAINING_COURSE
+}
+
+enum EligibilityContext {
+  SELECTION
+  SUBMISSION
+  APPROVAL
+}
+
+enum FinancialSourceKind {
+  CATALOG_OFFERING
+  PROGRAM_BATCH
+}
+
+enum DiscountMode {
+  NONE
+  PERCENTAGE
+  AMOUNT
+}
+
+enum AdmissionDocumentVersionStatus {
+  AVAILABLE
+  FAILED
+  WITHDRAWN
+}
+
+enum AdmissionDocumentDecisionKind {
+  VERIFIED
+  REJECTED
+}
+
+enum AdmissionTimelineEventKind {
+  CREATED
+  APPLICANT_UPDATED
+  NOTES_UPDATED
+  ASSIGNMENT_CHANGED
+  SELECTION_CHANGED
+  FINANCIAL_UPDATED
+  DOCUMENT_UPLOADED
+  DOCUMENT_REPLACED
+  DOCUMENT_WITHDRAWN
+  DOCUMENT_VERIFIED
+  DOCUMENT_REJECTED
+  POLICY_REFRESHED
+  STATUS_CHANGED
+  APPROVED
+  REJECTED
+  ARCHIVED
+  ENROLLED
+}
+
+enum AdmissionRequestStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum TicketStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  WAITING
+  REVIEW
+  DONE
+  ARCHIVED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Organization {
+  id              String                   @id @default(uuid()) @db.Uuid
+  singletonKey    String                   @unique @default("PRIMARY")
+  code            String                   @unique
+  name            String
+  logo            Json?
+  favicon         Json?
+  cover           Json?
+  website         String?
+  address         String?
+  workingHours    Json
+  version         Int                      @default(1)
+  createdAt       DateTime                 @default(now()) @db.Timestamptz
+  updatedAt       DateTime                 @updatedAt @db.Timestamptz
+  createdBy       String?                  @db.Uuid
+  updatedBy       String?                  @db.Uuid
+  contacts        OrganizationContact[]
+  socialLinks     OrganizationSocialLink[]
+  generalSettings GeneralSettings?
+  branches        Branch[]
+  departments     Department[]
+  academicYears   AcademicYear[]
+  lookupGroups    LookupGroup[]
+  inboxPlatforms  InboxPlatform[]
+  inboxTags       InboxTag[]
+  inboxCustomers  InboxCustomer[]
+  inboxConversations InboxConversation[]
+  inboxStagedAttachments InboxStagedAttachment[]
+}
+
+model OrganizationContact {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           OrganizationContactType
+  label          String
+  value          String
+  isPrimary      Boolean                 @default(false)
+  sortOrder      Int                     @default(0)
+
+  @@index([organizationId, type, sortOrder])
+}
+
+model OrganizationSocialLink {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform       String
+  url            String
+  sortOrder      Int          @default(0)
+
+  @@unique([organizationId, platform])
+  @@index([organizationId, sortOrder])
+}
+
+model GeneralSettings {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @unique @db.Uuid
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultLanguage       String
+  timeZone              String
+  currency              String
+  dateFormat            String
+  numberFormat          String
+  workingDays           String[]
+  defaultBranchId       String       @db.Uuid
+  defaultBranch         Branch       @relation(fields: [defaultBranchId], references: [id], onDelete: Restrict)
+  defaultAcademicYearId String       @db.Uuid
+  defaultAcademicYear   AcademicYear @relation(fields: [defaultAcademicYearId], references: [id], onDelete: Restrict)
+  version               Int          @default(1)
+  createdAt             DateTime     @default(now()) @db.Timestamptz
+  updatedAt             DateTime     @updatedAt @db.Timestamptz
+  createdBy             String?      @db.Uuid
+  updatedBy             String?      @db.Uuid
+
+  @@index([defaultBranchId])
+  @@index([defaultAcademicYearId])
+}
+
+model Branch {
+  id               String                  @id @default(uuid()) @db.Uuid
+  organizationId   String                  @db.Uuid
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name             String
+  normalizedName   String
+  code             String
+  address          String
+  phone            String
+  email            String
+  managerId        String?                 @db.Uuid
+  workingHours     String
+  status           EntityStatus            @default(ACTIVE)
+  version          Int                     @default(1)
+  archivedAt       DateTime?               @db.Timestamptz
+  createdAt        DateTime                @default(now()) @db.Timestamptz
+  updatedAt        DateTime                @updatedAt @db.Timestamptz
+  createdBy        String?                 @db.Uuid
+  updatedBy        String?                 @db.Uuid
+  generalSettings  GeneralSettings[]
+  batchAssignments BatchBranchAssignment[]
+  inboxCustomers    InboxCustomer[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([normalizedName])
+  @@index([updatedAt])
+  @@index([managerId])
+}
+
+model Department {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  normalizedName String
+  code           String
+  description    String
+  status         EntityStatus @default(ACTIVE)
+  version        Int          @default(1)
+  archivedAt     DateTime?    @db.Timestamptz
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  createdBy      String?      @db.Uuid
+  updatedBy      String?      @db.Uuid
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([normalizedName])
+  @@index([updatedAt])
+}
+
+model AcademicYear {
+  id              String            @id @default(uuid()) @db.Uuid
+  organizationId  String            @db.Uuid
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name            String
+  normalizedName  String
+  code            String
+  startDate       DateTime          @db.Date
+  endDate         DateTime          @db.Date
+  status          EntityStatus      @default(INACTIVE)
+  version         Int               @default(1)
+  archivedAt      DateTime?         @db.Timestamptz
+  createdAt       DateTime          @default(now()) @db.Timestamptz
+  updatedAt       DateTime          @updatedAt @db.Timestamptz
+  createdBy       String?           @db.Uuid
+  updatedBy       String?           @db.Uuid
+  terms           AcademicTerm[]
+  generalSettings GeneralSettings[]
+  programBatches  ProgramBatch[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([startDate])
+  @@index([normalizedName])
+}
+
+model AcademicTerm {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  academicYearId String       @db.Uuid
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  name           String
+  normalizedName String
+  startDate      DateTime     @db.Date
+  endDate        DateTime     @db.Date
+  order          Int
+  status         EntityStatus @default(ACTIVE)
+  version        Int          @default(1)
+  archivedAt     DateTime?    @db.Timestamptz
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  createdBy      String?      @db.Uuid
+  updatedBy      String?      @db.Uuid
+
+  @@unique([academicYearId, order], map: "AcademicTerm_academicYearId_order_key")
+  @@index([academicYearId, status, startDate])
+  @@index([organizationId])
+  @@index([normalizedName])
+  @@index([updatedAt])
+}
+
+model LookupGroup {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  code           String
+  name           String
+  normalizedName String
+  parentGroupId  String?       @db.Uuid
+  parentGroup    LookupGroup?  @relation("LookupGroupHierarchy", fields: [parentGroupId], references: [id], onDelete: Restrict)
+  childGroups    LookupGroup[] @relation("LookupGroupHierarchy")
+  status         EntityStatus  @default(ACTIVE)
+  version        Int           @default(1)
+  archivedAt     DateTime?     @db.Timestamptz
+  createdAt      DateTime      @default(now()) @db.Timestamptz
+  updatedAt      DateTime      @updatedAt @db.Timestamptz
+  createdBy      String?       @db.Uuid
+  updatedBy      String?       @db.Uuid
+  values         LookupValue[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, normalizedName])
+  @@index([organizationId, status])
+  @@index([parentGroupId])
+}
+
+model LookupValue {
+  id             String         @id @default(uuid()) @db.Uuid
+  lookupGroupId  String         @db.Uuid
+  lookupGroup    LookupGroup    @relation(fields: [lookupGroupId], references: [id], onDelete: Restrict)
+  parentValueId  String?        @db.Uuid
+  parentValue    LookupValue?   @relation("LookupValueHierarchy", fields: [parentValueId], references: [id], onDelete: Restrict)
+  childValues    LookupValue[]  @relation("LookupValueHierarchy")
+  name           String
+  normalizedName String
+  code           String
+  /// Optional prose describing the value. Expense categories carry one; most
+  /// lookup groups leave it null.
+  description    String?
+  sortOrder      Int            @default(0)
+  status         EntityStatus   @default(ACTIVE)
+  version        Int            @default(1)
+  archivedAt     DateTime?      @db.Timestamptz
+  createdAt      DateTime       @default(now()) @db.Timestamptz
+  updatedAt      DateTime       @updatedAt @db.Timestamptz
+  createdBy      String?        @db.Uuid
+  updatedBy      String?        @db.Uuid
+  programBatches ProgramBatch[]
+
+  @@unique([lookupGroupId, code])
+  @@unique([lookupGroupId, normalizedName])
+  @@index([lookupGroupId, status, sortOrder])
+  @@index([parentValueId])
+}
+
+model Role {
+  id                    String           @id @default(uuid()) @db.Uuid
+  code                  String           @unique
+  displayName           String
+  normalizedDisplayName String           @unique
+  description           String           @default("")
+  status                EntityStatus     @default(ACTIVE)
+  version               Int              @default(1)
+  archivedAt            DateTime?        @db.Timestamptz
+  createdAt             DateTime         @default(now()) @db.Timestamptz
+  updatedAt             DateTime         @updatedAt @db.Timestamptz
+  createdBy             String?          @db.Uuid
+  updatedBy             String?          @db.Uuid
+  accounts              AccountRole[]
+  permissions           RolePermission[]
+}
+
+model Account {
+  id                    String         @id @default(uuid()) @db.Uuid
+  email                 String         @unique
+  passwordHash          String
+  displayName           String
+  normalizedDisplayName String
+  phone                 String         @default("+2000000000")
+  position              String?
+  departmentId          String?        @db.Uuid
+  branchIds             String[]       @default([])
+  organizationWide      Boolean        @default(false)
+  avatar                Json?
+  status                EntityStatus   @default(ACTIVE)
+  version               Int            @default(1)
+  archivedAt            DateTime?      @db.Timestamptz
+  createdAt             DateTime       @default(now()) @db.Timestamptz
+  updatedAt             DateTime       @updatedAt @db.Timestamptz
+  createdBy             String?        @db.Uuid
+  updatedBy             String?        @db.Uuid
+  roles                 AccountRole[]
+  refreshTokens         RefreshToken[]
+  inboxAssignedConversations InboxConversation[] @relation("InboxAssignedEmployee")
+  inboxNotes             InboxInternalNote[]
+  inboxStagedAttachments InboxStagedAttachment[]
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([normalizedDisplayName])
+}
+
+model RefreshToken {
+  id             String    @id @db.Uuid
+  accountId      String    @db.Uuid
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tokenHash      String
+  device         String    @default("Unknown device")
+  browser        String    @default("Unknown browser")
+  ipAddress      String    @default("unknown")
+  userAgent      String?
+  lastActivityAt DateTime  @default(now()) @db.Timestamptz
+  expiresAt      DateTime  @db.Timestamptz
+  revokedAt      DateTime? @db.Timestamptz
+  revokeReason   String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+
+  @@index([accountId, revokedAt, expiresAt])
+  @@index([lastActivityAt])
+}
+
+model Permission {
+  id           String           @id @default(uuid()) @db.Uuid
+  key          String           @unique
+  moduleKey    String
+  actionKey    String
+  label        String
+  description  String
+  displayOrder Int
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @db.Timestamptz
+  updatedAt    DateTime         @updatedAt @db.Timestamptz
+  roles        RolePermission[]
+
+  @@index([moduleKey, displayOrder])
+}
+
+model AccountRole {
+  accountId  String   @db.Uuid
+  roleId     String   @db.Uuid
+  assignedAt DateTime @default(now()) @db.Timestamptz
+  assignedBy String?  @db.Uuid
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([accountId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  assignedAt   DateTime   @default(now()) @db.Timestamptz
+  assignedBy   String?    @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model TicketTeam {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  name           String
+  active         Boolean                @default(true)
+  createdAt      DateTime               @default(now()) @db.Timestamptz
+  memberships    TicketTeamMembership[]
+  inboxConversations InboxConversation[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active])
+}
+
+model TicketTeamMembership {
+  teamId     String     @db.Uuid
+  employeeId String     @db.Uuid
+  active     Boolean    @default(true)
+  team       TicketTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, employeeId])
+  @@index([employeeId, active])
+}
+
+model Ticket {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @db.Uuid
+  number           String
+  title            String
+  description      String
+  status           TicketStatus     @default(BACKLOG)
+  lastActiveStatus TicketStatus     @default(BACKLOG)
+  priority         TicketPriority   @default(MEDIUM)
+  priorityRank     Int              @default(2)
+  departmentId     String           @db.Uuid
+  branchId         String?          @db.Uuid
+  teamId           String?          @db.Uuid
+  employeeId       String?          @db.Uuid
+  customerId       String?          @db.Uuid
+  studentId        String?          @db.Uuid
+  conversationId   String?          @db.Uuid
+  dueAt            DateTime?        @db.Timestamptz
+  tags             String[]         @default([])
+  completedAt      DateTime?        @db.Timestamptz
+  archivedAt       DateTime?        @db.Timestamptz
+  deletedAt        DateTime?        @db.Timestamptz
+  version          Int              @default(1)
+  activitySequence Int              @default(0)
+  createdBy        String           @db.Uuid
+  updatedBy        String           @db.Uuid
+  createdAt        DateTime         @default(now()) @db.Timestamptz
+  updatedAt        DateTime         @updatedAt @db.Timestamptz
+  comments         TicketComment[]
+  activities       TicketActivity[]
+  attachments      TicketAttachment[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, archivedAt, status, updatedAt, id])
+  @@index([organizationId, employeeId, status])
+  @@index([organizationId, teamId, status])
+  @@index([organizationId, branchId, status])
+  @@index([organizationId, archivedAt, priorityRank, updatedAt, id])
+}
+
+model TicketComment {
+  id         String    @id @default(uuid()) @db.Uuid
+  ticketId   String    @db.Uuid
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  authorId   String    @db.Uuid
+  authorName String
+  message    String
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  updatedAt  DateTime? @db.Timestamptz
+  deletedAt  DateTime? @db.Timestamptz
+
+  @@index([ticketId, createdAt, id])
+}
+
+model TicketActivity {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @db.Uuid
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  sequence   Int
+  type       String
+  actorId    String   @db.Uuid
+  actorName  String
+  message    String
+  payload    Json
+  occurredAt DateTime @default(now()) @db.Timestamptz
+
+  @@unique([ticketId, sequence])
+  @@index([ticketId, sequence])
+}
+
+model TicketAttachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  ticketId    String   @db.Uuid
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  name        String
+  mimeType    String
+  sizeBytes   Int
+  storageId   String
+  storageName String
+  uploadedBy  String   @db.Uuid
+  uploadedAt  DateTime @default(now()) @db.Timestamptz
+  uploadKey   String?
+
+  @@unique([ticketId, uploadKey])
+  @@index([ticketId, uploadedAt, id])
+}
+
+model TicketCounter {
+  organizationId String @id @db.Uuid
+  nextNumber     Int    @default(1001)
+}
+
+enum InboxConversationStatus {
+  OPEN
+  PENDING
+  SNOOZED
+  CLOSED
+  ARCHIVED
+}
+
+enum InboxMessageDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum InboxMessageDelivery {
+  RECEIVED
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model InboxPlatform {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  label          String
+  icon           String
+  active         Boolean      @default(true)
+  conversations  InboxConversation[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, active])
+}
+
+model InboxTag {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  label          String
+  color          String
+  active         Boolean      @default(true)
+  conversations  InboxConversationTag[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, active])
+}
+
+model InboxCustomer {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branchId        String       @db.Uuid
+  branch          Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  name            String
+  normalizedName  String
+  phone           String
+  normalizedPhone String
+  avatarUrl       String?
+  firstContactAt  DateTime     @db.Timestamptz
+  lastActivityAt  DateTime     @db.Timestamptz
+  conversations   InboxConversation[]
+
+  @@unique([organizationId, normalizedPhone])
+  @@index([organizationId, branchId, lastActivityAt])
+  @@index([organizationId, normalizedName])
+}
+
+model InboxConversation {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  organizationId     String                  @db.Uuid
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId         String                  @db.Uuid
+  customer           InboxCustomer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  platformId         String                  @db.Uuid
+  platform           InboxPlatform           @relation(fields: [platformId], references: [id], onDelete: Restrict)
+  providerThreadId   String?
+  status             InboxConversationStatus @default(OPEN)
+  previousStatus     InboxConversationStatus?
+  assignedEmployeeId String?                 @db.Uuid
+  assignedEmployee   Account?                @relation("InboxAssignedEmployee", fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  assignedTeamId     String?                 @db.Uuid
+  assignedTeam       TicketTeam?             @relation(fields: [assignedTeamId], references: [id], onDelete: SetNull)
+  unreadCount        Int                     @default(0)
+  lastMessage        String
+  lastActivityAt     DateTime                @db.Timestamptz
+  closedAt           DateTime?               @db.Timestamptz
+  deletedAt          DateTime?               @db.Timestamptz
+  version            Int                     @default(1)
+  createdAt          DateTime                @default(now()) @db.Timestamptz
+  updatedAt          DateTime                @updatedAt @db.Timestamptz
+  messages           InboxMessage[]
+  notes              InboxInternalNote[]
+  tags               InboxConversationTag[]
+  assignmentHistory  InboxAssignmentHistory[]
+  systemEvents       InboxSystemEvent[]
+
+  @@index([organizationId, deletedAt, lastActivityAt, id])
+  @@index([organizationId, status, lastActivityAt])
+  @@index([organizationId, assignedEmployeeId, lastActivityAt])
+  @@index([organizationId, assignedTeamId, lastActivityAt])
+  @@index([customerId])
+  @@index([platformId])
+  @@unique([platformId, providerThreadId])
+}
+
+model InboxConversationTag {
+  conversationId String            @db.Uuid
+  tagId          String            @db.Uuid
+  conversation   InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag            InboxTag          @relation(fields: [tagId], references: [id], onDelete: Restrict)
+  addedAt        DateTime          @default(now()) @db.Timestamptz
+  addedBy        String            @db.Uuid
+
+  @@id([conversationId, tagId])
+  @@index([tagId, conversationId])
+}
+
+model InboxMessage {
+  id             String                  @id @default(uuid()) @db.Uuid
+  conversationId String                  @db.Uuid
+  conversation   InboxConversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      InboxMessageDirection
+  senderName     String
+  body           String
+  sentAt         DateTime                @db.Timestamptz
+  delivery       InboxMessageDelivery
+  retryToken     String?
+  providerMessageId String?                  @unique
+  createdBy      String?                 @db.Uuid
+  attachments    InboxMessageAttachment[]
+
+  @@unique([conversationId, retryToken])
+  @@index([conversationId, sentAt, id])
+}
+
+model InboxMessageAttachment {
+  id              String       @id @default(uuid()) @db.Uuid
+  messageId       String       @db.Uuid
+  message         InboxMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sourceId        String
+  kind            String
+  fileName        String
+  sizeBytes       Int
+  storageKey      String
+  ownerAccountId  String       @db.Uuid
+  durationSeconds Int?
+
+  @@index([messageId])
+  @@index([ownerAccountId, sourceId])
+}
+
+model InboxStagedAttachment {
+  id                  String       @id @default(uuid()) @db.Uuid
+  organizationId      String       @db.Uuid
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerAccountId      String       @db.Uuid
+  ownerAccount        Account      @relation(fields: [ownerAccountId], references: [id], onDelete: Cascade)
+  kind                String
+  fileName            String
+  mimeType            String
+  sizeBytes           Int
+  storageId           String
+  storageName         String
+  createdAt           DateTime     @default(now()) @db.Timestamptz
+  expiresAt           DateTime     @db.Timestamptz
+  consumedAt          DateTime?    @db.Timestamptz
+  consumedByMessageId String?      @db.Uuid
+
+  @@index([organizationId, ownerAccountId, consumedAt, expiresAt])
+  @@index([expiresAt])
+}
+
+model InboxInternalNote {
+  id               String            @id @default(uuid()) @db.Uuid
+  conversationId   String            @db.Uuid
+  conversation     InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorEmployeeId String            @db.Uuid
+  authorEmployee   Account           @relation(fields: [authorEmployeeId], references: [id], onDelete: Restrict)
+  authorName       String
+  content          String
+  createdAt        DateTime          @default(now()) @db.Timestamptz
+  updatedAt        DateTime?         @db.Timestamptz
+
+  @@index([conversationId, createdAt])
+}
+
+model InboxAssignmentHistory {
+  id                 String            @id @default(uuid()) @db.Uuid
+  conversationId     String            @db.Uuid
+  conversation       InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  previousEmployeeId String?           @db.Uuid
+  previousTeamId     String?           @db.Uuid
+  nextEmployeeId     String?           @db.Uuid
+  nextTeamId         String?           @db.Uuid
+  actorId            String            @db.Uuid
+  actorName          String
+  occurredAt         DateTime          @default(now()) @db.Timestamptz
+
+  @@index([conversationId, occurredAt])
+}
+
+model InboxSystemEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  conversationId String            @db.Uuid
+  conversation   InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  type           String
+  label          String
+  actorId        String            @db.Uuid
+  actorName      String
+  payload        Json?
+  occurredAt     DateTime          @default(now()) @db.Timestamptz
+
+  @@index([conversationId, occurredAt])
+}
+
+model ProductType {
+  id          String              @id @default(uuid()) @db.Uuid
+  identity    ProductTypeIdentity @unique
+  nameAr      String
+  nameEn      String
+  description String
+  status      EntityStatus        @default(ACTIVE)
+  version     Int                 @default(1)
+  archivedAt  DateTime?           @db.Timestamptz
+  createdAt   DateTime            @default(now()) @db.Timestamptz
+  updatedAt   DateTime            @updatedAt @db.Timestamptz
+  createdBy   String?             @db.Uuid
+  updatedBy   String?             @db.Uuid
+  fields      ProductTypeField[]
+  products    AcademicProduct[]
+
+  @@index([status, updatedAt])
+}
+
+model ProductTypeField {
+  productTypeId String           @db.Uuid
+  productType   ProductType      @relation(fields: [productTypeId], references: [id], onDelete: Cascade)
+  key           String
+  label         String
+  kind          ProductFieldKind
+  required      Boolean          @default(false)
+  position      Int
+
+  @@id([productTypeId, key])
+  @@unique([productTypeId, position])
+}
+
+model AcademicProduct {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  organizationId         String                    @db.Uuid
+  officialName           String
+  nameAr                 String
+  nameEn                 String
+  normalizedOfficialName String
+  normalizedNameAr       String
+  normalizedNameEn       String
+  code                   String                    @unique
+  codeLockedAt           DateTime?                 @db.Timestamptz
+  productTypeId          String                    @db.Uuid
+  productType            ProductType               @relation(fields: [productTypeId], references: [id], onDelete: Restrict)
+  categoryId             String                    @db.Uuid
+  departmentId           String?                   @db.Uuid
+  description            String
+  durationValue          Int?
+  durationUnitId         String?                   @db.Uuid
+  studyModeId            String?                   @db.Uuid
+  numberOfTerms          Int?
+  numberOfSessions       Int?
+  numberOfHours          Int?
+  internshipIncluded     Boolean?
+  trainingIncluded       Boolean?
+  finalProjectRequired   Boolean?
+  certificateIncluded    Boolean                   @default(false)
+  instructorEmployeeId   String?                   @db.Uuid
+  salesScript            String?
+  status                 ProductStatus             @default(DRAFT)
+  version                Int                       @default(1)
+  archivedAt             DateTime?                 @db.Timestamptz
+  createdAt              DateTime                  @default(now()) @db.Timestamptz
+  updatedAt              DateTime                  @updatedAt @db.Timestamptz
+  createdBy              String?                   @db.Uuid
+  updatedBy              String?                   @db.Uuid
+  pricing                ProductPricing?
+  branches               ProductBranchAssignment[]
+  content                ProductContentItem[]
+  assets                 ProductAsset[]
+  lifecycle              ProductLifecycleEvent[]
+  programBatches         ProgramBatch[]
+
+  @@index([productTypeId, status])
+  @@index([categoryId, status])
+  @@index([departmentId, status])
+  @@index([normalizedOfficialName])
+  @@index([normalizedNameAr])
+  @@index([normalizedNameEn])
+  @@index([updatedAt])
+}
+
+model ProductPricing {
+  productId            String          @id @db.Uuid
+  product              AcademicProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  currency             String
+  precision            Int
+  basePrice            BigInt
+  registrationFees     BigInt
+  certificateFees      BigInt
+  trainingFees         BigInt
+  cardFees             BigInt
+  examFees             BigInt
+  additionalFees       BigInt
+  discount             BigInt
+  scholarship          BigInt
+  installmentAvailable Boolean              @default(false)
+  installmentMinCount  Int                  @default(1)
+  installmentMaxCount  Int                  @default(12)
+  installmentFrequency InstallmentFrequency @default(MONTHLY)
+}
+
+model ProductBranchAssignment {
+  productId String            @db.Uuid
+  product   AcademicProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId  String            @db.Uuid
+  role      ProductBranchRole
+
+  @@id([productId, branchId, role])
+  @@index([branchId, role])
+}
+
+model ProductContentItem {
+  id          String             @id @default(uuid()) @db.Uuid
+  productId   String             @db.Uuid
+  product     AcademicProduct    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind        ProductContentKind
+  title       String
+  description String?
+  required    Boolean?
+  position    Int
+
+  @@unique([productId, kind, position])
+  @@index([productId, kind])
+}
+
+model ProductAsset {
+  id           String           @id @default(uuid()) @db.Uuid
+  productId    String           @db.Uuid
+  product      AcademicProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind         ProductAssetKind
+  fileId       String?
+  fileName     String?
+  originalName String?
+  mimeType     String?
+  size         Int?
+  url          String
+  label        String?
+  position     Int
+
+  @@unique([productId, kind, position])
+  @@index([productId, kind])
+}
+
+model ProductLifecycleEvent {
+  id               String          @id @default(uuid()) @db.Uuid
+  productId        String          @db.Uuid
+  product          AcademicProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  fromStatus       ProductStatus?
+  toStatus         ProductStatus
+  reason           String?
+  actorId          String          @db.Uuid
+  resultingVersion Int
+  occurredAt       DateTime        @default(now()) @db.Timestamptz
+
+  @@index([productId, occurredAt])
+}
+
+model ProgramBatch {
+  id                         String                   @id @default(uuid()) @db.Uuid
+  organizationId             String                   @db.Uuid
+  programId                  String                   @db.Uuid
+  program                    AcademicProduct          @relation(fields: [programId], references: [id], onDelete: Restrict)
+  nameAr                     String
+  nameEn                     String?
+  normalizedNameAr           String
+  normalizedNameEn           String?
+  code                       String
+  academicYearId             String                   @db.Uuid
+  academicYear               AcademicYear             @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  intakeId                   String                   @db.Uuid
+  intake                     LookupValue              @relation(fields: [intakeId], references: [id], onDelete: Restrict)
+  description                String                   @default("")
+  registrationStartDate      DateTime?                @db.Date
+  registrationEndDate        DateTime?                @db.Date
+  studyStartDate             DateTime?                @db.Date
+  studyEndDate               DateTime?                @db.Date
+  graduationDate             DateTime?                @db.Date
+  maximumStudents            Int
+  status                     BatchStatus              @default(DRAFT)
+  codeLockedAt               DateTime?                @db.Timestamptz
+  currentFinancialRevisionId String?                  @unique @db.Uuid
+  currentFinancialRevision   BatchFinancialRevision?  @relation("CurrentBatchFinancialRevision", fields: [currentFinancialRevisionId], references: [id], onDelete: Restrict)
+  version                    Int                      @default(1)
+  archivedAt                 DateTime?                @db.Timestamptz
+  createdAt                  DateTime                 @default(now()) @db.Timestamptz
+  updatedAt                  DateTime                 @updatedAt @db.Timestamptz
+  createdBy                  String                   @db.Uuid
+  updatedBy                  String                   @db.Uuid
+  branches                   BatchBranchAssignment[]
+  financialRevisions         BatchFinancialRevision[] @relation("BatchFinancialRevisions")
+  lifecycle                  BatchLifecycleEvent[]
+
+  @@unique([programId, code])
+  @@index([programId, status, updatedAt])
+  @@index([academicYearId, status])
+  @@index([intakeId, status])
+  @@index([normalizedNameAr])
+  @@index([normalizedNameEn])
+  @@index([updatedAt])
+}
+
+model BatchBranchAssignment {
+  batchId   String          @db.Uuid
+  batch     ProgramBatch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  branchId  String          @db.Uuid
+  branch    Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  role      BatchBranchRole
+  createdAt DateTime        @default(now()) @db.Timestamptz
+  createdBy String          @db.Uuid
+
+  @@id([batchId, branchId, role])
+  @@index([branchId, role, batchId])
+  @@index([batchId, role])
+}
+
+model BatchFinancialRevision {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  batchId                  String                 @db.Uuid
+  batch                    ProgramBatch           @relation("BatchFinancialRevisions", fields: [batchId], references: [id], onDelete: Restrict)
+  currentForBatch          ProgramBatch?          @relation("CurrentBatchFinancialRevision")
+  revisionNumber           Int
+  programPriceMinor        BigInt
+  programPriceCurrency     String
+  programPricePrecision    Int
+  registrationFeeMinor     BigInt
+  registrationFeeCurrency  String
+  registrationFeePrecision Int
+  installmentsEnabled      Boolean                @default(false)
+  sourceBatchVersion       Int
+  createdAt                DateTime               @default(now()) @db.Timestamptz
+  createdBy                String                 @db.Uuid
+  installmentPlans         BatchInstallmentPlan[]
+  offers                   BatchOffer[]
+
+  @@unique([batchId, revisionNumber])
+  @@unique([batchId, sourceBatchVersion])
+  @@index([batchId, createdAt])
+}
+
+model BatchInstallmentPlan {
+  id                  String                 @id @db.Uuid
+  externalId          String                 @db.Uuid
+  financialRevisionId String                 @db.Uuid
+  financialRevision   BatchFinancialRevision @relation(fields: [financialRevisionId], references: [id], onDelete: Restrict)
+  name                String
+  basis               InstallmentBasis
+  coveredCharge       CoveredCharge
+  status              ConfigurationStatus    @default(ACTIVE)
+  position            Int
+  installments        BatchInstallment[]
+
+  @@unique([financialRevisionId, position])
+  @@unique([financialRevisionId, externalId])
+  @@index([financialRevisionId, status])
+}
+
+model BatchInstallment {
+  id                String               @id @db.Uuid
+  externalId        String               @db.Uuid
+  installmentPlanId String               @db.Uuid
+  installmentPlan   BatchInstallmentPlan @relation(fields: [installmentPlanId], references: [id], onDelete: Restrict)
+  label             String
+  valueMinor        BigInt
+  valuePrecision    Int
+  milestone         String
+  position          Int
+
+  @@unique([installmentPlanId, position])
+  @@unique([installmentPlanId, externalId])
+}
+
+model BatchOffer {
+  id                  String                 @id @db.Uuid
+  externalId          String                 @db.Uuid
+  financialRevisionId String                 @db.Uuid
+  financialRevision   BatchFinancialRevision @relation(fields: [financialRevisionId], references: [id], onDelete: Restrict)
+  kind                BatchOfferKind
+  name                String
+  valueType           BatchValueType
+  valueMinor          BigInt
+  valuePrecision      Int
+  currency            String?
+  startDate           DateTime?              @db.Date
+  endDate             DateTime?              @db.Date
+  status              ConfigurationStatus    @default(ACTIVE)
+  position            Int
+
+  @@unique([financialRevisionId, position])
+  @@unique([financialRevisionId, externalId])
+  @@index([financialRevisionId, kind, status])
+}
+
+model BatchLifecycleEvent {
+  id               String       @id @default(uuid()) @db.Uuid
+  batchId          String       @db.Uuid
+  batch            ProgramBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  fromStatus       BatchStatus?
+  toStatus         BatchStatus
+  reason           String?
+  actorId          String       @db.Uuid
+  resultingVersion Int
+  occurredAt       DateTime     @default(now()) @db.Timestamptz
+
+  @@unique([batchId, resultingVersion])
+  @@index([batchId, occurredAt, id])
+}
+
+model Applicant {
+  id                        String          @id @default(uuid()) @db.Uuid
+  organizationId            String          @db.Uuid
+  fullName                  String
+  normalizedFullName        String
+  primaryPhone              String
+  normalizedPrimaryPhone    String
+  guardianPhone             String?
+  normalizedGuardianPhone   String?
+  nationalId                String?
+  normalizedNationalId      String?
+  alternativeIdentityReason String?
+  address                   String
+  dateOfBirth               DateTime        @db.Date
+  qualificationId           String          @db.Uuid
+  qualificationLabel        String
+  graduationYear            Int
+  privateNotes              String?
+  profileFile               Json?
+  status                    ApplicantStatus @default(ACTIVE)
+  version                   Int             @default(1)
+  archiveReason             String?
+  archivedAt                DateTime?       @db.Timestamptz
+  createdAt                 DateTime        @default(now()) @db.Timestamptz
+  updatedAt                 DateTime        @updatedAt @db.Timestamptz
+  createdBy                 String          @db.Uuid
+  updatedBy                 String          @db.Uuid
+  admissions                Admission[]
+
+  @@index([organizationId, normalizedNationalId])
+  @@index([organizationId, normalizedPrimaryPhone])
+  @@index([organizationId, normalizedFullName])
+  @@index([organizationId, status])
+}
+
+model Admission {
+  id                              String                            @id @default(uuid()) @db.Uuid
+  organizationId                  String                            @db.Uuid
+  reference                       String
+  applicantId                     String                            @db.Uuid
+  applicant                       Applicant                         @relation(fields: [applicantId], references: [id], onDelete: Restrict)
+  status                          AdmissionStatus                   @default(DRAFT)
+  version                         Int                               @default(1)
+  registrationBranchId            String                            @db.Uuid
+  registrationBranchLabel         String
+  studyBranchId                   String                            @db.Uuid
+  studyBranchLabel                String
+  admissionsEmployeeId            String                            @db.Uuid
+  admissionsEmployeeLabel         String
+  customerServiceEmployeeId       String                            @db.Uuid
+  customerServiceEmployeeLabel    String
+  customerServiceManagerId        String                            @db.Uuid
+  customerServiceManagerLabel     String
+  departmentId                    String                            @db.Uuid
+  departmentLabel                 String
+  leadSourceId                    String                            @db.Uuid
+  leadSourceLabel                 String
+  academicGradeId                 String?                           @db.Uuid
+  academicGradeLabel              String?
+  currentSelectionRevisionId      String?                           @unique @db.Uuid
+  currentSelectionRevision        AdmissionSelectionRevision?       @relation("CurrentAdmissionSelection", fields: [currentSelectionRevisionId], references: [id], onDelete: Restrict)
+  currentFinancialRevisionId      String?                           @unique @db.Uuid
+  currentFinancialRevision        AdmissionFinancialRevision?       @relation("CurrentAdmissionFinancial", fields: [currentFinancialRevisionId], references: [id], onDelete: Restrict)
+  currentDocumentPolicySnapshotId String?                           @unique @db.Uuid
+  currentDocumentPolicySnapshot   AdmissionDocumentPolicySnapshot?  @relation("CurrentAdmissionDocumentPolicy", fields: [currentDocumentPolicySnapshotId], references: [id], onDelete: Restrict)
+  approvalSnapshotId              String?                           @unique @db.Uuid
+  approvalSnapshot                AdmissionApprovalSnapshot?        @relation("CurrentAdmissionApproval", fields: [approvalSnapshotId], references: [id], onDelete: Restrict)
+  privateNotes                    String?
+  activeReviewerId                String?                           @db.Uuid
+  activeReviewerName              String?
+  reviewStartedAt                 DateTime?                         @db.Timestamptz
+  externalEnrollmentReference     String?
+  archiveReason                   String?
+  archivedAt                      DateTime?                         @db.Timestamptz
+  createdAt                       DateTime                          @default(now()) @db.Timestamptz
+  updatedAt                       DateTime                          @updatedAt @db.Timestamptz
+  createdBy                       String                            @db.Uuid
+  updatedBy                       String                            @db.Uuid
+  selectionRevisions              AdmissionSelectionRevision[]      @relation("AdmissionSelections")
+  financialRevisions              AdmissionFinancialRevision[]      @relation("AdmissionFinancials")
+  eligibilityAssessments          AdmissionEligibilityAssessment[]
+  documentPolicySnapshots         AdmissionDocumentPolicySnapshot[] @relation("AdmissionDocumentPolicies")
+  documents                       AdmissionDocument[]
+  approvalSnapshots               AdmissionApprovalSnapshot[]       @relation("AdmissionApprovals")
+  lifecycleEvents                 AdmissionLifecycleEvent[]
+  timelineEvents                  AdmissionTimelineEvent[]
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status, updatedAt, id])
+  @@index([applicantId])
+  @@index([registrationBranchId, status])
+  @@index([studyBranchId, status])
+  @@index([admissionsEmployeeId, status])
+  @@index([customerServiceEmployeeId, status])
+  @@index([customerServiceManagerId, status])
+  @@index([createdAt])
+}
+
+model AdmissionSelectionRevision {
+  id                       String                @id @default(uuid()) @db.Uuid
+  admissionId              String                @db.Uuid
+  admission                Admission             @relation("AdmissionSelections", fields: [admissionId], references: [id], onDelete: Restrict)
+  currentForAdmission      Admission?            @relation("CurrentAdmissionSelection")
+  revisionNumber           Int
+  sourceAdmissionVersion   Int
+  resultAdmissionVersion   Int
+  offeringKind             AdmissionOfferingKind
+  offeringId               String                @db.Uuid
+  offeringVersion          Int
+  offeringLabel            String
+  offeringCode             String
+  batchId                  String?               @db.Uuid
+  batchVersion             Int?
+  batchLabel               String?
+  batchCode                String?
+  batchFinancialRevisionId String?               @db.Uuid
+  registrationBranch       Json
+  studyBranch              Json
+  changeReason             String?
+  createdAt                DateTime              @default(now()) @db.Timestamptz
+  createdBy                String                @db.Uuid
+
+  @@unique([admissionId, revisionNumber])
+  @@unique([admissionId, resultAdmissionVersion])
+  @@index([offeringId, offeringKind])
+  @@index([batchId])
+}
+
+model AdmissionEligibilityAssessment {
+  id                  String             @id @default(uuid()) @db.Uuid
+  admissionId         String             @db.Uuid
+  admission           Admission          @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  selectionRevisionId String             @db.Uuid
+  context             EligibilityContext
+  eligible            Boolean
+  evaluatedAt         DateTime           @default(now()) @db.Timestamptz
+  offeringVersion     Int
+  batchVersion        Int?
+  availableSeats      Int?
+  reasonCodes         String[]
+
+  @@index([admissionId, context, evaluatedAt])
+  @@index([selectionRevisionId])
+}
+
+model AdmissionFinancialRevision {
+  id                        String              @id @default(uuid()) @db.Uuid
+  admissionId               String              @db.Uuid
+  admission                 Admission           @relation("AdmissionFinancials", fields: [admissionId], references: [id], onDelete: Restrict)
+  currentForAdmission       Admission?          @relation("CurrentAdmissionFinancial")
+  revisionNumber            Int
+  sourceKind                FinancialSourceKind
+  sourceId                  String              @db.Uuid
+  sourceVersion             Int
+  sourceFinancialRevisionId String?             @db.Uuid
+  productPriceMinor         BigInt
+  registrationFeesMinor     BigInt
+  currency                  String
+  precision                 Int
+  discountMode              DiscountMode
+  discountPercentageScaled  Int
+  discountAmountMinor       BigInt
+  requiredAmountMinor       BigInt
+  reason                    String?
+  resultAdmissionVersion    Int
+  createdAt                 DateTime            @default(now()) @db.Timestamptz
+  createdBy                 String              @db.Uuid
+
+  @@unique([admissionId, revisionNumber])
+  @@unique([admissionId, resultAdmissionVersion])
+}
+
+model AdmissionDocumentPolicySnapshot {
+  id                  String                               @id @default(uuid()) @db.Uuid
+  admissionId         String                               @db.Uuid
+  admission           Admission                            @relation("AdmissionDocumentPolicies", fields: [admissionId], references: [id], onDelete: Restrict)
+  currentForAdmission Admission?                           @relation("CurrentAdmissionDocumentPolicy")
+  sourcePolicyId      String                               @db.Uuid
+  sourcePolicyVersion Int
+  snapshotVersion     Int
+  createdAt           DateTime                             @default(now()) @db.Timestamptz
+  createdBy           String                               @db.Uuid
+  requirements        AdmissionDocumentPolicyRequirement[]
+
+  @@unique([admissionId, snapshotVersion])
+}
+
+model AdmissionDocumentPolicyRequirement {
+  id                  String                          @id @default(uuid()) @db.Uuid
+  snapshotId          String                          @db.Uuid
+  snapshot            AdmissionDocumentPolicySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  stableKey           String
+  label               String
+  required            Boolean
+  requiredAtStage     AdmissionStatus
+  allowedMimeTypes    String[]
+  maximumBytes        Int
+  sourceRequirementId String                          @db.Uuid
+  documents           AdmissionDocument[]
+
+  @@unique([snapshotId, stableKey])
+}
+
+/// Which module a configured requirement list governs. The two differ in shape
+/// — Admissions stages a requirement by workflow status and verifies it,
+/// Students allows repeated uploads of one type — so a list is written for one
+/// module and never shared implicitly.
+enum DocumentPolicyModule {
+  ADMISSIONS
+  STUDENTS
+}
+
+/// The editable source of truth for "which documents are asked for".
+///
+/// Before this existed the lists were hardcoded constants, so the only way to
+/// stop asking for a document was a code change. A row with a null
+/// `offeringId` is the organization-wide default; a row naming an offering
+/// overrides that default for it alone. `version` is what an admission's
+/// policy snapshot is compared against, so bumping it is what lets an existing
+/// draft pick the change up through the refresh-policy route.
+model DocumentRequirementPolicy {
+  id             String                          @id @default(uuid()) @db.Uuid
+  organizationId String                          @db.Uuid
+  module         DocumentPolicyModule
+  offeringId     String?                         @db.Uuid
+  version        Int                             @default(1)
+  createdAt      DateTime                        @default(now()) @db.Timestamptz
+  updatedAt      DateTime                        @updatedAt @db.Timestamptz
+  updatedById    String?                         @db.Uuid
+  requirements   DocumentRequirementDefinition[]
+
+  @@index([organizationId, module])
+}
+
+/// One configurable document type inside a policy.
+///
+/// `enabled` and `required` are deliberately separate: a document can be
+/// offered but optional, which is not the same as not being asked for at all.
+model DocumentRequirementDefinition {
+  id               String                    @id @default(uuid()) @db.Uuid
+  policyId         String                    @db.Uuid
+  policy           DocumentRequirementPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  stableKey        String
+  label            String
+  enabled          Boolean                   @default(true)
+  required         Boolean                   @default(true)
+  /// Admissions only — the stage the document must exist by.
+  requiredAtStage  AdmissionStatus?
+  /// Students only — whether repeated uploads of this type are kept.
+  multiple         Boolean                   @default(false)
+  allowedMimeTypes String[]
+  maximumBytes     Int
+  displayOrder     Int                       @default(0)
+
+  @@unique([policyId, stableKey])
+}
+
+model AdmissionDocument {
+  id                   String                             @id @default(uuid()) @db.Uuid
+  admissionId          String                             @db.Uuid
+  admission            Admission                          @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  requirementKey       String
+  currentRequirementId String                             @db.Uuid
+  currentRequirement   AdmissionDocumentPolicyRequirement @relation(fields: [currentRequirementId], references: [id], onDelete: Restrict)
+  currentVersionId     String?                            @unique @db.Uuid
+  currentVersion       AdmissionDocumentVersion?          @relation("CurrentAdmissionDocumentVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  version              Int                                @default(1)
+  createdAt            DateTime                           @default(now()) @db.Timestamptz
+  updatedAt            DateTime                           @updatedAt @db.Timestamptz
+  createdBy            String                             @db.Uuid
+  updatedBy            String                             @db.Uuid
+  versions             AdmissionDocumentVersion[]         @relation("AdmissionDocumentVersions")
+
+  @@unique([admissionId, requirementKey])
+  @@index([currentRequirementId])
+}
+
+model AdmissionDocumentVersion {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  documentId         String                         @db.Uuid
+  document           AdmissionDocument              @relation("AdmissionDocumentVersions", fields: [documentId], references: [id], onDelete: Restrict)
+  currentForDocument AdmissionDocument?             @relation("CurrentAdmissionDocumentVersion")
+  versionNumber      Int
+  storageFileId      String
+  fileDescriptor     Json
+  originalName       String
+  mimeType           String
+  byteSize           Int
+  previewLocator     String?
+  status             AdmissionDocumentVersionStatus @default(AVAILABLE)
+  idempotencyKey     String
+  uploadedAt         DateTime                       @default(now()) @db.Timestamptz
+  uploadedBy         String                         @db.Uuid
+  withdrawnAt        DateTime?                      @db.Timestamptz
+  withdrawnBy        String?                        @db.Uuid
+  withdrawalReason   String?
+  decisions          AdmissionDocumentDecision[]
+
+  @@unique([documentId, versionNumber])
+  @@unique([documentId, idempotencyKey])
+}
+
+model AdmissionDocumentDecision {
+  id                     String                        @id @default(uuid()) @db.Uuid
+  documentVersionId      String                        @db.Uuid
+  documentVersion        AdmissionDocumentVersion      @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  decision               AdmissionDocumentDecisionKind
+  reason                 String?
+  reviewerId             String                        @db.Uuid
+  reviewerName           String
+  decidedAt              DateTime                      @default(now()) @db.Timestamptz
+  sourceAdmissionVersion Int
+
+  @@index([documentVersionId, decidedAt])
+}
+
+model AdmissionApprovalSnapshot {
+  id                         String     @id @default(uuid()) @db.Uuid
+  admissionId                String     @unique @db.Uuid
+  admission                  Admission  @relation("AdmissionApprovals", fields: [admissionId], references: [id], onDelete: Restrict)
+  currentForAdmission        Admission? @relation("CurrentAdmissionApproval")
+  sourceAdmissionVersion     Int
+  selectionRevisionId        String     @db.Uuid
+  financialRevisionId        String     @db.Uuid
+  documentPolicySnapshotId   String     @db.Uuid
+  assignmentSnapshot         Json
+  applicantSnapshot          Json
+  verifiedDocumentVersionIds String[]
+  academicTarget             Json
+  requiredAmountMinor        BigInt
+  currency                   String
+  idempotencyKey             String     @unique
+  approvedAt                 DateTime   @default(now()) @db.Timestamptz
+  approvedBy                 String     @db.Uuid
+}
+
+model AdmissionLifecycleEvent {
+  id            String           @id @default(uuid()) @db.Uuid
+  admissionId   String           @db.Uuid
+  admission     Admission        @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  fromStatus    AdmissionStatus?
+  toStatus      AdmissionStatus
+  reason        String?
+  actorId       String           @db.Uuid
+  actorName     String
+  sourceVersion Int
+  resultVersion Int
+  occurredAt    DateTime         @default(now()) @db.Timestamptz
+
+  @@unique([admissionId, resultVersion])
+  @@index([admissionId, occurredAt, id])
+}
+
+model AdmissionTimelineEvent {
+  id                     String                     @id @default(uuid()) @db.Uuid
+  admissionId            String                     @db.Uuid
+  admission              Admission                  @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  kind                   AdmissionTimelineEventKind
+  sourceAdmissionVersion Int
+  resultAdmissionVersion Int
+  actorId                String                     @db.Uuid
+  actorName              String
+  metadata               Json
+  occurredAt             DateTime                   @default(now()) @db.Timestamptz
+
+  @@index([admissionId, occurredAt, id])
+}
+
+model AdmissionRequestKey {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  organizationId     String                 @db.Uuid
+  operationScope     String
+  idempotencyKey     String
+  requestFingerprint String
+  targetId           String?                @db.Uuid
+  resultPayload      Json?
+  status             AdmissionRequestStatus @default(PROCESSING)
+  createdAt          DateTime               @default(now()) @db.Timestamptz
+  updatedAt          DateTime               @updatedAt @db.Timestamptz
+
+  @@unique([organizationId, operationScope, idempotencyKey])
+}
+
+model AdmissionReferenceCounter {
+  organizationId String   @db.Uuid
+  year           Int
+  nextValue      Int      @default(1)
+  updatedAt      DateTime @updatedAt @db.Timestamptz
+
+  @@id([organizationId, year])
+}
+
+// ═══════════════════════════ STUDENTS ═══════════════════════════
+// Feature 008. Students are produced only by admission intake; there is no
+// create or delete surface. Operational eligibility is derived from
+// documentCompletion, never stored — see specs/008-student-management/research.md R-006.
+
+enum StudentStatus {
+  ACTIVE
+  SUSPENDED
+  GRADUATED
+  WITHDRAWN
+  ARCHIVED
+}
+
+enum StudentEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+  WITHDRAWN
+}
+
+enum StudentOfferingKind {
+  PROFESSIONAL_PROGRAM
+  PROFESSIONAL_DIPLOMA
+  TRAINING_COURSE
+}
+
+enum StudentDocumentState {
+  MISSING
+  PRESENT
+  ARCHIVED
+}
+
+enum StudentTimelineCategory {
+  ADMISSION_SUBMITTED
+  ADMISSION_APPROVED
+  STUDENT_CREATED
+  ENROLLMENT_ADDED
+  DOCUMENT_UPLOADED
+  DOCUMENT_REPLACED
+  DOCUMENT_ARCHIVED
+  PROFILE_UPDATED
+  STATUS_CHANGED
+  FINANCIAL_EVENT
+  ACADEMIC_EVENT
+}
+
+model Student {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  studentCode    String
+  status         StudentStatus @default(ACTIVE)
+
+  fullName                  String
+  searchName                String
+  primaryPhone              String
+  guardianName              String?
+  guardianPhone             String?
+  nationalId                String?
+  normalizedNationalId      String?
+  alternativeIdentityReason String?
+  address                   String
+  dateOfBirth               DateTime @db.Date
+  qualificationId           String   @db.Uuid
+  qualificationLabel        String
+  graduationYear            Int
+  profileImageFileId        String?
+  profileImageUrl           String?
+
+  registrationBranchId        String  @db.Uuid
+  registrationBranchLabel     String
+  studyBranchId               String  @db.Uuid
+  studyBranchLabel            String
+  departmentId                String  @db.Uuid
+  departmentLabel             String
+  academicGradeId             String? @db.Uuid
+  academicGradeLabel          String?
+  customerServiceEmployeeId   String  @db.Uuid
+  customerServiceEmployeeName String
+
+  admissionId        String   @db.Uuid
+  admissionReference String
+  approvalSnapshotId String   @db.Uuid
+  admissionDate      DateTime @db.Date
+  enrollmentDate     DateTime @db.Date
+
+  archivedAt       DateTime? @db.Timestamptz
+  archiveReason    String?
+  timelineSequence Int       @default(0)
+  version          Int       @default(1)
+
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  createdById   String   @db.Uuid
+  createdByName String
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  updatedById   String   @db.Uuid
+  updatedByName String
+
+  enrollments    StudentEnrollment[]
+  documents      StudentDocument[]
+  notes          StudentNote[]
+  statusHistory  StudentStatusChange[]
+  timelineEvents StudentTimelineEvent[]
+
+  @@unique([organizationId, studentCode])
+  @@unique([organizationId, normalizedNationalId])
+  @@unique([organizationId, approvalSnapshotId])
+  @@index([organizationId, status])
+  @@index([organizationId, registrationBranchId])
+  @@index([organizationId, studyBranchId])
+  @@index([organizationId, departmentId])
+  @@index([organizationId, customerServiceEmployeeId])
+  @@index([organizationId, updatedAt])
+  @@index([searchName])
+}
+
+model StudentEnrollment {
+  id        String  @id @default(uuid()) @db.Uuid
+  studentId String  @db.Uuid
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  offeringKind                StudentOfferingKind
+  offeringId                  String              @db.Uuid
+  offeringVersionAtEnrollment Int
+  offeringLabel               String
+  offeringCode                String
+  batchId                     String?             @db.Uuid
+  batchVersionAtEnrollment    Int?
+  batchLabel                  String?
+  batchCode                   String?
+
+  registrationBranchLabel String
+  studyBranchLabel        String
+  academicYear            Int
+  enrollmentDate          DateTime                @db.Date
+  status                  StudentEnrollmentStatus @default(ACTIVE)
+  sourceAdmissionId       String                  @db.Uuid
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([studentId])
+  @@index([offeringId])
+  @@index([batchId])
+}
+
+model StudentDocument {
+  id        String  @id @default(uuid()) @db.Uuid
+  studentId String  @db.Uuid
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  typeKey          String
+  state            StudentDocumentState     @default(PRESENT)
+  currentVersionId String?                  @unique @db.Uuid
+  currentVersion   StudentDocumentVersion?  @relation("CurrentStudentDocumentVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  versions         StudentDocumentVersion[] @relation("StudentDocumentVersions")
+
+  archivedAt    DateTime? @db.Timestamptz
+  archiveReason String?
+  version       Int       @default(1)
+
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  createdById String   @db.Uuid
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  updatedById String   @db.Uuid
+
+  @@index([studentId, typeKey])
+}
+
+model StudentDocumentVersion {
+  id                 String           @id @default(uuid()) @db.Uuid
+  documentId         String           @db.Uuid
+  document           StudentDocument  @relation("StudentDocumentVersions", fields: [documentId], references: [id], onDelete: Restrict)
+  currentForDocument StudentDocument? @relation("CurrentStudentDocumentVersion")
+
+  versionNumber  Int
+  storageFileId  String
+  fileDescriptor Json
+  fileName       String
+  mimeType       String
+  byteSize       Int
+  previewLocator String?
+
+  uploadAttemptId String
+  uploadedAt      DateTime @default(now()) @db.Timestamptz
+  uploadedById    String   @db.Uuid
+  uploadedByName  String
+
+  // Provenance only. Deliberately NOT a foreign key — a relation into
+  // AdmissionDocumentVersion would couple the two modules' rows and break the
+  // independence FR-009 requires.
+  copiedFromAdmissionVersionId String? @db.Uuid
+
+  @@unique([documentId, versionNumber])
+  @@unique([documentId, uploadAttemptId])
+}
+
+model StudentStatusChange {
+  id        String  @id @default(uuid()) @db.Uuid
+  studentId String  @db.Uuid
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  fromStatus StudentStatus?
+  toStatus   StudentStatus
+  reason     String?
+
+  actorId       String   @db.Uuid
+  actorName     String
+  occurredAt    DateTime @default(now()) @db.Timestamptz
+  sourceVersion Int
+  resultVersion Int
+
+  @@index([studentId, occurredAt])
+}
+
+model StudentNote {
+  id        String  @id @default(uuid()) @db.Uuid
+  studentId String  @db.Uuid
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  content    String
+  authorId   String   @db.Uuid
+  authorName String
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  editedAt     DateTime? @db.Timestamptz
+  editedById   String?   @db.Uuid
+  editedByName String?
+  archivedAt   DateTime? @db.Timestamptz
+
+  @@index([studentId, createdAt])
+}
+
+model StudentTimelineEvent {
+  id        String  @id @default(uuid()) @db.Uuid
+  studentId String  @db.Uuid
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  category   StudentTimelineCategory
+  occurredAt DateTime                @default(now()) @db.Timestamptz
+  sequence   Int
+
+  actorId    String  @db.Uuid
+  actorName  String
+  origin     String
+  subjectRef String?
+  summary    String
+
+  @@unique([studentId, sequence])
+  @@index([studentId, sequence(sort: Desc)])
+}
+
+model StudentIntakeKey {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @db.Uuid
+  approvalSnapshotId String   @db.Uuid
+  studentId          String   @db.Uuid
+  createdAt          DateTime @default(now()) @db.Timestamptz
+
+  @@unique([organizationId, approvalSnapshotId])
+}
+
+model StudentCodeCounter {
+  organizationId String   @db.Uuid
+  academicYear   Int
+  branchId       String   @db.Uuid
+  nextValue      Int      @default(1)
+  updatedAt      DateTime @updatedAt @db.Timestamptz
+
+  @@id([organizationId, academicYear, branchId])
+}
+
+// ---------------------------------------------------------------------------
+// Student Finance (module 009)
+//
+// Money is BigInt minor units plus currency/precision, never a float or
+// Decimal. Cross-module identifiers (student, enrollment, offering, batch,
+// branch, lookup value, employee) are plain UUID columns with no Prisma
+// relation, matching Student.admissionId: Finance validates them through the
+// owning module's public port and never joins a foreign table
+// (constitution Principle II).
+//
+// Balances are NOT stored. finance_invoice_balance (created in the migration)
+// projects final/collected/netPaid/remaining/derivedStatus/isOverdue from
+// these tables on demand, so there is no second source of truth that can
+// drift from the payments and reductions that produced it.
+// ---------------------------------------------------------------------------
+
+enum FinanceOfferingKind {
+  PROFESSIONAL_PROGRAM
+  PROFESSIONAL_DIPLOMA
+  TRAINING_COURSE
+}
+
+/// PARTIALLY_PAID and PAID are derivation outputs only. A CHECK constraint in
+/// the migration restricts the stored column to DRAFT/ISSUED/CANCELLED so a
+/// transition can never write a status that contradicts recorded money.
+enum FinanceInvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+/// Derived from payments and the due date; never stored on Installment.
+enum FinanceInstallmentStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+enum FinanceRefundStatus {
+  REQUESTED
+  APPROVED
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum FinanceReductionKind {
+  PERCENTAGE
+  AMOUNT
+}
+
+enum FinanceScholarshipCoverage {
+  FULL_TUITION
+  PARTIAL_TUITION
+}
+
+enum FinanceScheduleBasis {
+  WEEKLY
+  MONTHLY
+  BIMONTHLY
+  CUSTOM
+}
+
+enum InstallmentFrequency {
+  WEEKLY
+  MONTHLY
+  BIMONTHLY
+}
+
+enum FinanceReductionSourceKind {
+  DISCOUNT
+  SCHOLARSHIP
+}
+
+enum FinanceEventCategory {
+  INVOICE_CREATED
+  INVOICE_ISSUED
+  INVOICE_CANCELLED
+  INSTALLMENT_PLAN_GENERATED
+  PAYMENT_RECEIVED
+  DISCOUNT_APPLIED
+  SCHOLARSHIP_APPLIED
+  ADJUSTMENT_RECORDED
+  REFUND_REQUESTED
+  REFUND_COMPLETED
+}
+
+enum FinanceSequenceKind {
+  INVOICE
+  RECEIPT
+}
+
+/// Exactly one per student, provisioned by the student.created event. Holds no
+/// balance column: outstanding balance, total charges and financial status are
+/// derived on read.
+model StudentFinancialAccount {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  studentId      String @unique @db.Uuid
+  studentCode    String
+  studentName    String
+  searchName     String
+  currency       String
+  precision      Int
+
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  createdById String   @db.Uuid
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  updatedById String   @db.Uuid
+
+  snapshots StudentEnrollmentFinancialSnapshot[]
+  invoices  Invoice[]
+
+  @@index([organizationId, searchName])
+  @@index([organizationId, studentCode])
+}
+
+/// Written once at enrollment from the Admissions approval snapshot. A trigger
+/// rejects UPDATE and DELETE, which is what makes "future pricing changes never
+/// modify existing student accounts" structural rather than procedural.
+model StudentEnrollmentFinancialSnapshot {
+  id        String                  @id @default(uuid()) @db.Uuid
+  accountId String                  @db.Uuid
+  account   StudentFinancialAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  enrollmentId  String              @unique @db.Uuid
+  offeringId    String              @db.Uuid
+  offeringKind  FinanceOfferingKind
+  offeringLabel String
+  batchId       String?             @db.Uuid
+  batchLabel    String?
+  branchId      String              @db.Uuid
+
+  sourceAdmissionId         String @db.Uuid
+  sourceApprovalSnapshotId  String @db.Uuid
+  sourceFinancialRevisionId String @db.Uuid
+
+  tuitionMinor           BigInt
+  registrationFeesMinor  BigInt
+  admissionDiscountMinor BigInt @default(0)
+  requiredAmountMinor    BigInt
+  currency               String
+  precision              Int
+
+  snapshotAt   DateTime @default(now()) @db.Timestamptz
+  snapshotById String   @db.Uuid
+
+  @@index([accountId])
+  @@index([offeringId])
+  @@index([batchId])
+}
+
+/// The versioned charge aggregate. An additional charge is an invoice on a
+/// non-tuition charge purpose.
+model Invoice {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  invoiceNumber  String
+  accountId      String                  @db.Uuid
+  account        StudentFinancialAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  studentId   String @db.Uuid
+  studentCode String
+  studentName String
+  searchName  String
+
+  enrollmentId  String              @db.Uuid
+  branchId      String              @db.Uuid
+  offeringId    String              @db.Uuid
+  offeringLabel String
+  offeringKind  FinanceOfferingKind
+  batchId       String?             @db.Uuid
+  batchLabel    String?
+
+  /// FK-free reference to the FINANCE_CHARGE_PURPOSE lookup value. Adding a
+  /// fee type is a lookup row, never a code change (Principle XIX).
+  chargePurposeValueId String @db.Uuid
+  chargePurposeCode    String
+
+  issueDate DateTime? @db.Date
+  dueDate   DateTime  @db.Date
+  currency  String
+  precision Int
+
+  draftTotalMinor            BigInt
+  draftDiscountTotalMinor    BigInt @default(0)
+  draftScholarshipTotalMinor BigInt @default(0)
+  draftFinalMinor            BigInt
+
+  /// Written exactly once at issuance. A trigger rejects any UPDATE that
+  /// changes a non-null issued column.
+  issuedTotalMinor            BigInt?
+  issuedDiscountTotalMinor    BigInt?
+  issuedScholarshipTotalMinor BigInt?
+  issuedFinalMinor            BigInt?
+
+  status       FinanceInvoiceStatus @default(DRAFT)
+  cancelledAt  DateTime?            @db.Timestamptz
+  cancelReason String?
+
+  version       Int      @default(1)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  createdById   String   @db.Uuid
+  createdByName String
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  updatedById   String   @db.Uuid
+  updatedByName String
+
+  statusHistory InvoiceStatusChange[]
+  plan          InstallmentPlan?
+  installments  Installment[]
+  payments      Payment[]
+  discounts     Discount[]
+  adjustments   FinancialAdjustment[]
+  refunds       Refund[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@unique([enrollmentId, chargePurposeValueId])
+  @@index([organizationId, branchId, status])
+  @@index([organizationId, studentId])
+  @@index([organizationId, dueDate])
+  @@index([organizationId, issueDate])
+  @@index([organizationId, offeringId])
+  @@index([organizationId, batchId])
+  @@index([organizationId, updatedAt])
+  @@index([searchName])
+  @@index([accountId])
+}
+
+/// Append-only. UPDATE and DELETE rejected by trigger.
+model InvoiceStatusChange {
+  id        String  @id @default(uuid()) @db.Uuid
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  fromStatus FinanceInvoiceStatus?
+  toStatus   FinanceInvoiceStatus
+  reason     String?
+  actorId    String                @db.Uuid
+  actorName  String
+  occurredAt DateTime              @default(now()) @db.Timestamptz
+
+  resultInvoiceVersion Int
+
+  @@unique([invoiceId, resultInvoiceVersion])
+  @@index([invoiceId, occurredAt])
+}
+
+model InstallmentPlan {
+  id        String  @id @default(uuid()) @db.Uuid
+  invoiceId String  @unique @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  count         Int
+  scheduleBasis FinanceScheduleBasis
+  firstDueDate  DateTime             @db.Date
+
+  generatedAt     DateTime @default(now()) @db.Timestamptz
+  generatedById   String   @db.Uuid
+  generatedByName String
+
+  installments Installment[]
+}
+
+/// paidAmount, remaining and status are derived from payments and the due
+/// date; they are deliberately absent as columns.
+model Installment {
+  id     String          @id @default(uuid()) @db.Uuid
+  planId String          @db.Uuid
+  plan   InstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  sequence    Int
+  dueDate     DateTime @db.Date
+  amountMinor BigInt
+
+  payments Payment[]
+
+  @@unique([planId, sequence])
+  @@index([invoiceId])
+  @@index([dueDate])
+}
+
+/// Immutable. No update or delete path exists at any layer; a trigger rejects
+/// both. Corrections go through a refund.
+model Payment {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  receiptNumber  String
+
+  studentId String  @db.Uuid
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  installmentId String?      @db.Uuid
+  installment   Installment? @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+
+  branchId String @db.Uuid
+
+  /// FK-free reference to the FINANCE_PAYMENT_METHOD lookup value. Inactive
+  /// methods stay resolvable so historical payments keep their label.
+  methodId String @db.Uuid
+
+  paymentDate DateTime @db.Date
+  amountMinor BigInt
+  currency    String
+  precision   Int
+  notes       String?
+
+  recordedAt     DateTime @default(now()) @db.Timestamptz
+  recordedById   String   @db.Uuid
+  recordedByName String
+
+  refunds Refund[]
+
+  @@unique([organizationId, receiptNumber])
+  @@index([invoiceId])
+  @@index([installmentId])
+  @@index([organizationId, studentId])
+  @@index([organizationId, paymentDate])
+  @@index([organizationId, methodId])
+  @@index([organizationId, branchId])
+}
+
+/// Append-only invoice-level reduction.
+model Discount {
+  id        String  @id @default(uuid()) @db.Uuid
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  kind   FinanceReductionKind
+  /// Percentage points scaled by 100 (e.g. 10.5% -> 1050) or minor units for
+  /// a fixed amount. Integer either way; no float ever touches money.
+  value  BigInt
+  reason String
+
+  approvedById   String   @db.Uuid
+  approvedByName String
+  approvedAt     DateTime @default(now()) @db.Timestamptz
+
+  @@index([invoiceId])
+}
+
+/// Append-only student-level reduction. A null enrollmentId applies it to
+/// every enrollment of that student.
+model Scholarship {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  studentId      String  @db.Uuid
+  enrollmentId   String? @db.Uuid
+
+  name     String
+  kind     FinanceReductionKind
+  value    BigInt
+  coverage FinanceScholarshipCoverage
+  reason   String
+
+  approvedById   String   @db.Uuid
+  approvedByName String
+  approvedAt     DateTime @default(now()) @db.Timestamptz
+
+  @@index([organizationId, studentId])
+  @@index([enrollmentId])
+}
+
+/// A reduction recorded AFTER issuance, so the issued snapshot is never
+/// rewritten. Always a positive reduction amount.
+model FinancialAdjustment {
+  id        String  @id @default(uuid()) @db.Uuid
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  sourceKind FinanceReductionSourceKind
+  sourceId   String                     @db.Uuid
+
+  amountMinor BigInt
+  currency    String
+  precision   Int
+  reason      String
+
+  approvedById   String   @db.Uuid
+  approvedByName String
+  createdAt      DateTime @default(now()) @db.Timestamptz
+
+  @@index([invoiceId])
+}
+
+/// Only a COMPLETED refund reduces the collected total. Requesting and
+/// authorizing are separate permissions.
+model Refund {
+  id        String  @id @default(uuid()) @db.Uuid
+  paymentId String  @db.Uuid
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  invoiceId String  @db.Uuid
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  organizationId String @db.Uuid
+  studentId      String @db.Uuid
+  branchId       String @db.Uuid
+
+  amountMinor BigInt
+  currency    String
+  precision   Int
+  reason      String
+  refundDate  DateTime @db.Date
+
+  status FinanceRefundStatus @default(REQUESTED)
+
+  requestedById   String   @db.Uuid
+  requestedByName String
+  requestedAt     DateTime @default(now()) @db.Timestamptz
+
+  decidedById    String?   @db.Uuid
+  decidedByName  String?
+  decidedAt      DateTime? @db.Timestamptz
+  decisionReason String?
+  completedAt    DateTime? @db.Timestamptz
+
+  version Int @default(1)
+
+  @@index([paymentId, status])
+  @@index([invoiceId])
+  @@index([organizationId, studentId])
+  @@index([organizationId, refundDate])
+  @@index([organizationId, status])
+  @@index([organizationId, branchId])
+}
+
+/// Append-only, cursor-paginated student activity record.
+model FinanceTimelineEvent {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  studentId      String  @db.Uuid
+  invoiceId      String? @db.Uuid
+
+  category   FinanceEventCategory
+  occurredAt DateTime             @default(now()) @db.Timestamptz
+  /// Per-student monotonic ordinal allocated in the same transaction as the
+  /// event it describes. A timestamp cannot order events sharing a millisecond.
+  sequence   Int
+
+  actorId     String  @db.Uuid
+  actorName   String
+  subjectRef  String?
+  amountMinor BigInt?
+  currency    String?
+  precision   Int?
+  summary     String
+
+  @@unique([studentId, sequence])
+  @@index([studentId, sequence(sort: Desc)])
+  @@index([organizationId, category])
+}
+
+/// Incremented under SELECT ... FOR UPDATE inside the allocating transaction,
+/// never count + 1.
+model FinanceNumberCounter {
+  organizationId String              @db.Uuid
+  sequenceKind   FinanceSequenceKind
+  year           Int
+  lastValue      Int                 @default(0)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz
+
+  @@id([organizationId, sequenceKind, year])
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  RETURNED
+  /// Settled: the approved amount has actually been disbursed. Distinct from
+  /// APPROVED, which only authorises the spend.
+  PAID
+  ARCHIVED
+}
+
+enum ExpenseApprovalAction {
+  CREATE
+  SUBMIT
+  REVIEW
+  APPROVE
+  REJECT
+  RETURN
+  PAY
+  ARCHIVE
+}
+
+model ExpenseRequest {
+  id               String   @id @default(cuid())
+  expenseNumber    String   @unique
+  branchId         String   @db.Uuid
+  categoryId       String   @db.Uuid
+  subcategoryId    String   @db.Uuid
+  requestedById    String   @db.Uuid
+  expenseDate      DateTime @db.Date
+  description      String
+  amount           String
+  currency         String
+  precision        Int
+  status           ExpenseStatus @default(DRAFT)
+  isArchived       Boolean  @default(false)
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  attachments      ExpenseAttachment[]
+  approvalHistory  ExpenseApprovalHistory[]
+  comments         ExpenseComment[]
+
+  @@index([branchId])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([requestedById])
+  @@index([status])
+  @@index([isArchived])
+  @@index([createdAt])
+  @@index([branchId, status])
+}
+
+model ExpenseAttachment {
+  id               String   @id @default(cuid())
+  expenseRequestId String
+  fileName         String
+  fileReference    String
+  mimeType         String
+  fileSize         Int
+  uploadAttemptId  String   @unique
+  uploadedAt       DateTime @default(now())
+  uploadedById     String   @db.Uuid
+  /// Denormalised so an attachment keeps the name of whoever uploaded it even
+  /// if that account is later renamed or deactivated.
+  uploadedByName   String   @default("")
+
+  expenseRequest   ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Cascade)
+
+  @@index([expenseRequestId])
+  @@index([uploadedById])
+}
+
+model ExpenseApprovalHistory {
+  id               String   @id @default(cuid())
+  expenseRequestId String
+  action           ExpenseApprovalAction
+  previousStatus   String?
+  newStatus        String
+  performedById    String   @db.Uuid
+  /// Denormalised for the same reason: approval history is an audit record and
+  /// must not change meaning when an account does.
+  performedByName  String   @default("")
+  performedAt      DateTime @default(now())
+  comment          String?
+
+  expenseRequest   ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Cascade)
+
+  @@index([expenseRequestId])
+  @@index([performedById])
+  @@index([performedAt])
+}
+
+/// Discussion on a request, deliberately separate from ExpenseApprovalHistory.
+///
+/// The history is the audit record and nothing a commenter writes may dilute
+/// it; keeping the two in different tables is what makes that structural
+/// rather than a convention. There is no update or delete: a comment, once
+/// made, stays part of what the reviewers saw.
+model ExpenseComment {
+  id               String   @id @default(cuid())
+  expenseRequestId String
+  body             String
+  authorId         String   @db.Uuid
+  /// Denormalised, like the history's actor, so a comment keeps the name of
+  /// whoever wrote it even after that account is renamed.
+  authorName       String   @default("")
+  createdAt        DateTime @default(now())
+
+  expenseRequest   ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Cascade)
+
+  @@index([expenseRequestId, createdAt])
+  @@index([authorId])
+}

@@ -1,0 +1,506 @@
+{
+ "invoiceRow": {
+  "id": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+  "invoiceNumber": "INV-2026-00002",
+  "studentId": "83d3c02c-0099-456b-ac1b-4b59acc282ac",
+  "studentCode": "2027-MAIN-00001",
+  "studentName": "سارة إبراهيم للتجربة",
+  "offeringLabel": "برنامج إدارة الأعمال المهني",
+  "batchLabel": "دفعة الخريف التجريبية",
+  "branchId": "10000000-0000-4000-8000-000000000002",
+  "purpose": "registration-fee",
+  "issueDate": "2026-08-06",
+  "dueDate": "2026-09-05",
+  "finalAmount": {
+   "amount": "100.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "paidAmount": {
+   "amount": "50.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "remaining": {
+   "amount": "50.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "status": "partially-paid",
+  "isOverdue": false,
+  "updatedAt": "2026-08-06T08:12:23.350Z",
+  "version": 3
+ },
+ "invoiceDetail": {
+  "id": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+  "organizationId": "10000000-0000-4000-8000-000000000001",
+  "invoiceNumber": "INV-2026-00002",
+  "studentId": "83d3c02c-0099-456b-ac1b-4b59acc282ac",
+  "studentCode": "2027-MAIN-00001",
+  "studentName": "سارة إبراهيم للتجربة",
+  "enrollmentId": "1983a8f8-6d58-4962-9b12-8067fb24b3ef",
+  "branchId": "10000000-0000-4000-8000-000000000002",
+  "offeringId": "30000000-0000-4000-8000-000000000004",
+  "offeringLabel": "برنامج إدارة الأعمال المهني",
+  "offeringKind": "professional-program",
+  "batchId": "30000000-0000-4000-8000-000000000005",
+  "batchLabel": "دفعة الخريف التجريبية",
+  "purpose": "registration-fee",
+  "issueDate": "2026-08-06",
+  "dueDate": "2026-09-05",
+  "currency": "SAR",
+  "precision": 2,
+  "draft": {
+   "totalAmount": {
+    "amount": "100.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "discountTotal": {
+    "amount": "0.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "scholarshipTotal": {
+    "amount": "0.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "finalAmount": {
+    "amount": "100.00",
+    "currency": "SAR",
+    "precision": 2
+   }
+  },
+  "issuedSnapshot": {
+   "totalAmount": {
+    "amount": "100.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "discountTotal": {
+    "amount": "0.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "scholarshipTotal": {
+    "amount": "0.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "finalAmount": {
+    "amount": "100.00",
+    "currency": "SAR",
+    "precision": 2
+   }
+  },
+  "status": "partially-paid",
+  "statusHistory": [
+   {
+    "fromStatus": null,
+    "toStatus": "draft",
+    "actor": {
+     "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+     "name": "مدير النظام",
+     "active": true
+    },
+    "occurredAt": "2026-08-06T08:10:39.483Z"
+   },
+   {
+    "fromStatus": "draft",
+    "toStatus": "issued",
+    "actor": {
+     "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+     "name": "مدير النظام",
+     "active": true
+    },
+    "occurredAt": "2026-08-06T08:12:03.069Z"
+   }
+  ],
+  "derived": {
+   "finalAmount": {
+    "amount": "100.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "netPaid": {
+    "amount": "50.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "remaining": {
+    "amount": "50.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "status": "partially-paid",
+   "isOverdue": false
+  },
+  "permissions": {
+   "view": true,
+   "invoicesView": true,
+   "invoicesCreate": true,
+   "invoicesUpdate": true,
+   "invoicesIssue": true,
+   "invoicesCancel": true,
+   "installmentsManage": true,
+   "paymentsView": true,
+   "paymentsRecord": true,
+   "discountsApprove": true,
+   "scholarshipsApprove": true,
+   "refundsView": true,
+   "refundsRecord": true,
+   "refundsApprove": true,
+   "timelineView": true,
+   "export": true
+  },
+  "version": 3,
+  "createdAt": "2026-08-06T08:10:39.483Z",
+  "createdBy": {
+   "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+   "name": "مدير النظام",
+   "active": true
+  },
+  "updatedAt": "2026-08-06T08:12:23.350Z",
+  "updatedBy": {
+   "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+   "name": "مدير النظام",
+   "active": true
+  }
+ },
+ "paymentRow": {
+  "id": "60466885-dd77-4d68-820b-6e3ff44aa3d1",
+  "invoiceId": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+  "invoiceNumber": "INV-2026-00002",
+  "studentId": "83d3c02c-0099-456b-ac1b-4b59acc282ac",
+  "studentCode": "2027-MAIN-00001",
+  "studentName": "سارة إبراهيم للتجربة",
+  "receiptNumber": "RCP-2026-00001",
+  "amount": {
+   "amount": "50.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "paymentDate": "2026-08-06",
+  "paymentMethodId": "2d5a8ef1-e845-4013-a0f1-7deddf506a38",
+  "notes": "دفعة تجريبية",
+  "recordedAt": "2026-08-06T08:12:23.346Z",
+  "recordedBy": {
+   "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+   "name": "مدير النظام"
+  }
+ },
+ "lookups": {
+  "paymentMethods": [
+   {
+    "id": "2d5a8ef1-e845-4013-a0f1-7deddf506a38",
+    "code": "cash",
+    "label": "نقدي",
+    "active": true
+   },
+   {
+    "id": "2bcc2f0c-b54b-4296-8787-b79fc284be94",
+    "code": "bank-transfer",
+    "label": "تحويل بنكي",
+    "active": true
+   },
+   {
+    "id": "edb01fa5-2bdb-4542-b3f2-d60e22fd9df4",
+    "code": "card",
+    "label": "بطاقة ائتمانية",
+    "active": true
+   },
+   {
+    "id": "a30e0a7c-7285-47f8-acf9-a521dd792bc4",
+    "code": "cheque",
+    "label": "شيك",
+    "active": true
+   }
+  ],
+  "chargePurposes": [
+   {
+    "id": "c419465f-c36f-4fda-a61e-e12923619847",
+    "code": "tuition",
+    "label": "رسوم دراسية",
+    "active": true
+   },
+   {
+    "id": "739539f6-7ca0-4769-81f7-2170d6d687f0",
+    "code": "registration-fee",
+    "label": "رسوم تسجيل",
+    "active": true
+   },
+   {
+    "id": "a2a6f938-b02a-4a53-83a4-0c9b69a2e657",
+    "code": "card-fee",
+    "label": "رسوم كارنيه",
+    "active": true
+   },
+   {
+    "id": "7d2595a3-39eb-460d-94de-4c728e968ee6",
+    "code": "certificate-fee",
+    "label": "رسوم شهادة",
+    "active": true
+   },
+   {
+    "id": "4774c9ee-6439-4ea8-aa64-15d77744e0b4",
+    "code": "exam-fee",
+    "label": "رسوم امتحان",
+    "active": true
+   },
+   {
+    "id": "5d712519-1d34-4e74-8d63-7583eb46064c",
+    "code": "training-fee",
+    "label": "رسوم تدريب",
+    "active": true
+   },
+   {
+    "id": "2cab3e28-db98-4356-9e73-e46c2402bb13",
+    "code": "additional-fee",
+    "label": "رسوم إضافية",
+    "active": true
+   }
+  ],
+  "branches": [
+   {
+    "id": "10000000-0000-4000-8000-000000000002",
+    "code": "MAIN",
+    "label": "الفرع الرئيسي",
+    "active": true
+   }
+  ],
+  "offerings": [],
+  "batches": [],
+  "invoiceStatuses": [
+   "draft",
+   "issued",
+   "partially-paid",
+   "paid",
+   "cancelled"
+  ],
+  "refundStatuses": [
+   "requested",
+   "approved",
+   "completed",
+   "rejected",
+   "cancelled"
+  ],
+  "installmentEligibility": [
+   {
+    "offeringKind": "professional-program",
+    "allowsPlan": true,
+    "maxCount": 12
+   },
+   {
+    "offeringKind": "professional-diploma",
+    "allowsPlan": true,
+    "maxCount": 12
+   },
+   {
+    "offeringKind": "training-course",
+    "allowsPlan": false,
+    "maxCount": 0
+   }
+  ],
+  "discountPolicy": {
+   "maxPercentage": "50",
+   "maxAmount": {
+    "amount": "10000.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "requiresApproval": true
+  },
+  "scholarshipPolicy": {
+   "maxPercentage": "100",
+   "requiresApproval": true
+  },
+  "numbering": {
+   "invoicePrefix": "INV",
+   "receiptPrefix": "RCP",
+   "year": 2026,
+   "width": 5
+  },
+  "duePolicy": {
+   "defaultDueDays": 30,
+   "overdueGraceDays": 0
+  },
+  "currency": "SAR",
+  "precision": 2
+ },
+ "dashboard": {
+  "invoiced": {
+   "amount": "1200.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "collected": {
+   "amount": "50.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "outstanding": {
+   "amount": "1150.00",
+   "currency": "SAR",
+   "precision": 2
+  },
+  "unsettledInvoices": 1,
+  "hasNoRecords": false,
+  "asOf": "2026-08-06T12:21:07.937Z"
+ },
+ "profile": {
+  "studentId": "83d3c02c-0099-456b-ac1b-4b59acc282ac",
+  "totals": {
+   "totalFees": {
+    "amount": "1200.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "paidAmount": {
+    "amount": "50.00",
+    "currency": "SAR",
+    "precision": 2
+   },
+   "remainingBalance": {
+    "amount": "1150.00",
+    "currency": "SAR",
+    "precision": 2
+   }
+  },
+  "outstandingInstallments": 0,
+  "financialStatus": "partial-balance",
+  "scholarships": [],
+  "discounts": [],
+  "perEnrollment": [
+   {
+    "enrollmentId": "1983a8f8-6d58-4962-9b12-8067fb24b3ef",
+    "offeringLabel": "برنامج إدارة الأعمال المهني",
+    "totalFees": {
+     "amount": "1200.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "paidAmount": {
+     "amount": "50.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "remainingBalance": {
+     "amount": "1150.00",
+     "currency": "SAR",
+     "precision": 2
+    }
+   }
+  ],
+  "hasNoRecords": false,
+  "asOf": "2026-08-06T12:21:07.959Z"
+ },
+ "timeline": {
+  "items": [
+   {
+    "id": "1fcfeec4-babe-42f7-b488-6867e9fc0866",
+    "category": "payment-received",
+    "occurredAt": "2026-08-06T08:12:23.358Z",
+    "summary": "تم استلام دفعة",
+    "invoiceId": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "subjectRef": "60466885-dd77-4d68-820b-6e3ff44aa3d1",
+    "amount": {
+     "amount": "50.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "actor": {
+     "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+     "name": "مدير النظام"
+    }
+   },
+   {
+    "id": "db24dc5b-e356-45a0-ac30-73bf5f891652",
+    "category": "invoice-issued",
+    "occurredAt": "2026-08-06T08:12:03.074Z",
+    "summary": "تم إصدار الفاتورة",
+    "invoiceId": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "subjectRef": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "amount": {
+     "amount": "100.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "actor": {
+     "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+     "name": "مدير النظام"
+    }
+   },
+   {
+    "id": "801edb45-4f91-4c41-bc11-3c351316bc7d",
+    "category": "invoice-created",
+    "occurredAt": "2026-08-06T08:10:39.485Z",
+    "summary": "تم إنشاء فاتورة",
+    "invoiceId": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "subjectRef": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "amount": {
+     "amount": "100.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "actor": {
+     "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+     "name": "مدير النظام"
+    }
+   },
+   {
+    "id": "f31041f7-7788-4c99-bdc1-838bd4d9c3ec",
+    "category": "invoice-created",
+    "occurredAt": "2026-08-06T08:10:39.480Z",
+    "summary": "تم إنشاء فاتورة",
+    "invoiceId": "4c7db971-4ad2-45ac-aab1-c8dfff702430",
+    "subjectRef": "4c7db971-4ad2-45ac-aab1-c8dfff702430",
+    "amount": {
+     "amount": "1100.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "actor": {
+     "id": "3d142cd1-a9b0-490b-b55e-e6229205b474",
+     "name": "مدير النظام"
+    }
+   }
+  ],
+  "nextCursor": null
+ },
+ "accountingContext": {
+  "invoices": [
+   {
+    "id": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "invoiceNumber": "INV-2026-00002",
+    "studentId": "83d3c02c-0099-456b-ac1b-4b59acc282ac",
+    "enrollmentId": "1983a8f8-6d58-4962-9b12-8067fb24b3ef",
+    "issueDate": "2026-08-06",
+    "finalAmount": {
+     "amount": "100.00",
+     "currency": "SAR",
+     "precision": 2
+    },
+    "status": "issued"
+   }
+  ],
+  "payments": [
+   {
+    "id": "60466885-dd77-4d68-820b-6e3ff44aa3d1",
+    "receiptNumber": "RCP-2026-00001",
+    "invoiceId": "edb76f90-f2e3-4396-bbf0-ad6f9f991499",
+    "methodId": "2d5a8ef1-e845-4013-a0f1-7deddf506a38",
+    "paymentDate": "2026-08-06",
+    "amount": {
+     "amount": "50.00",
+     "currency": "SAR",
+     "precision": 2
+    }
+   }
+  ],
+  "refunds": [],
+  "asOf": "2026-08-06T12:21:08.017Z",
+  "currency": "SAR",
+  "precision": 2
+ }
+}

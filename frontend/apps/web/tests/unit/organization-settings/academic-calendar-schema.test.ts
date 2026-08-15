@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest"
+import { academicTermSchema, academicYearSchema } from "@/features/organization-settings/schemas/academic-calendar-schema"
+describe("academic calendar schemas", () => { it("rejects inverted ranges", () => expect(academicYearSchema.safeParse({ name: "عام", startDate: "2027-01-01", endDate: "2026-01-01", status: "inactive" }).success).toBe(false)); it("requires a parent year", () => expect(academicTermSchema.safeParse({ academicYearId: "", academicYearName: "", name: "فصل", startDate: "2026-01-01", endDate: "2026-02-01", status: "inactive" }).success).toBe(false)) })

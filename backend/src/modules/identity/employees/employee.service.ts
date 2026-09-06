@@ -6,7 +6,6 @@ import { TransactionManager } from '../../../database/transaction.manager';
 import {
   DuplicateException,
   NotFoundException,
-  OutOfScopeException,
   ValidationException,
   VersionConflictException,
 } from '../../../core/exceptions';
@@ -58,24 +57,12 @@ export class EmployeeService {
       payload,
     });
   }
-  private assertScope(caller: CallerContext, branchIds: string[]): void {
-    if (
-      !caller.organizationWide &&
-      !branchIds.some((id) => caller.authorizedBranchIds.includes(id))
-    )
-      throw new OutOfScopeException();
-  }
   async list(caller: CallerContext, query: ListEmployeesDto) {
     const where: Prisma.AccountWhereInput = {
       ...(query.status
         ? { status: query.status }
         : { status: { not: 'ARCHIVED' } }),
-      ...(query.departmentId ? { departmentId: query.departmentId } : {}),
-      ...(query.branchId ? { branchIds: { has: query.branchId } } : {}),
       ...(query.roleId ? { roles: { some: { roleId: query.roleId } } } : {}),
-      ...(!caller.organizationWide
-        ? { branchIds: { hasSome: caller.authorizedBranchIds } }
-        : {}),
       ...(query.search
         ? {
             OR: [
@@ -101,7 +88,6 @@ export class EmployeeService {
   async get(caller: CallerContext, id: string) {
     const employee = await this.employees.findById(id);
     if (!employee) throw new NotFoundException();
-    this.assertScope(caller, employee.branchIds);
     return mapEmployee(employee);
   }
   private async validateRoles(roleIds: string[]): Promise<string[]> {
@@ -117,13 +103,7 @@ export class EmployeeService {
   }
   async create(caller: CallerContext, dto: CreateEmployeeDto) {
     const roleIds = await this.validateRoles(dto.roleIds);
-    const branchIds = [...new Set(dto.branchIds)];
-    this.policy.assertAssignments(
-      roleIds,
-      branchIds,
-      dto.organizationWide ?? false,
-    );
-    this.assertScope(caller, branchIds);
+    this.policy.assertAssignments(roleIds);
     this.passwordPolicy.validate(dto.password);
     try {
       const passwordHash = await this.passwords.hash(dto.password);
@@ -137,8 +117,6 @@ export class EmployeeService {
             ).toLowerCase(),
             phone: dto.phone,
             position: dto.position,
-            departmentId: dto.departmentId,
-            branchIds,
             organizationWide: dto.organizationWide ?? false,
             status: dto.status,
             passwordHash,
@@ -150,7 +128,6 @@ export class EmployeeService {
       );
       this.emit(IdentityEventName.EmployeeCreated, caller, employee.id, {
         roleIds,
-        branchIds,
       });
       return mapEmployee(employee);
     } catch {
@@ -160,18 +137,11 @@ export class EmployeeService {
   async update(caller: CallerContext, id: string, dto: UpdateEmployeeDto) {
     const current = await this.employees.findById(id);
     if (!current) throw new NotFoundException();
-    this.assertScope(caller, current.branchIds);
     const { expectedVersion, roleIds, avatar, ...data } = dto;
     const nextRoles = roleIds
       ? await this.validateRoles(roleIds)
       : current.roles.map(({ roleId }) => roleId);
-    const nextBranches = data.branchIds ?? current.branchIds;
-    this.policy.assertAssignments(
-      nextRoles,
-      nextBranches,
-      current.organizationWide,
-    );
-    this.assertScope(caller, nextBranches);
+    this.policy.assertAssignments(nextRoles);
     await this.transactions.run(async (tx) => {
       const result = await this.employees.updateVersioned(
         id,
@@ -207,7 +177,6 @@ export class EmployeeService {
   async status(caller: CallerContext, id: string, dto: EmployeeStatusDto) {
     const current = await this.employees.findById(id);
     if (!current) throw new NotFoundException();
-    this.assertScope(caller, current.branchIds);
     this.policy.assertTransition(current.status, dto.status);
     const sessionsRevoked = await this.transactions.run(async (tx) => {
       const result = await this.employees.setStatus(
@@ -247,7 +216,6 @@ export class EmployeeService {
     this.passwordPolicy.validate(dto.newPassword);
     const current = await this.employees.findById(id);
     if (!current) throw new NotFoundException();
-    this.assertScope(caller, current.branchIds);
     const passwordHash = await this.passwords.hash(dto.newPassword);
     const sessionsRevoked = await this.transactions.run(async (tx) => {
       const result = await this.employees.updateVersioned(

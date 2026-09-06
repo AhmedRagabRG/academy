@@ -46,8 +46,6 @@ export function filterConversations(
         (!query.teamIds.length ||
           (row.assignedTeamId !== null &&
             query.teamIds.includes(row.assignedTeamId))) &&
-        (!query.branchIds.length ||
-          query.branchIds.includes(row.customer.branchId)) &&
         (!query.tagIds.length ||
           query.tagIds.some((id) => row.tagIds.includes(id)))
       )

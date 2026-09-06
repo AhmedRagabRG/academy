@@ -22,7 +22,7 @@ export const ORGANIZATION_PROFILE: OrganizationProfile = {
   version: 1,
 
   name: "Alsalam Academy",
-  nameAr: "أكاديمية السلام المهنية",
+  nameAr: "أكاديمية السلام المهني",
   nameEn: "Alsalam Professional Academy",
   description: "نطوّر المهارات ونبني مستقبلًا مهنيًا أكثر ثقة.",
 

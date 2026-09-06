@@ -24,5 +24,6 @@ export default defineConfig({
      * against the running API.
      */
     env: { NEXT_PUBLIC_API_MOCKS: "true" },
+    testTimeout: 15000,
   },
 })

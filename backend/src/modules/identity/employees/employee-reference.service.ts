@@ -30,8 +30,6 @@ export class EmployeeReferenceService implements EmployeeReferencePort {
       active,
       assignmentEligible: active,
       managerEligible: active && managerEligible,
-      branchIds: row.branchIds,
-      ...(row.departmentId ? { departmentId: row.departmentId } : {}),
       ...(active
         ? {}
         : {

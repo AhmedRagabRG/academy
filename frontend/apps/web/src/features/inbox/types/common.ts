@@ -6,7 +6,6 @@ export type NoteId = Brand<string, "NoteId">
 export type EmployeeId = Brand<string, "InboxEmployeeId">
 export type TeamId = Brand<string, "TeamId">
 export type TagId = Brand<string, "TagId">
-export type BranchId = Brand<string, "InboxBranchId">
 export type PlatformId = Brand<string, "PlatformId">
 
 export type ConversationStatus =

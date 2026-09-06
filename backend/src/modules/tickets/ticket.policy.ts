@@ -20,19 +20,13 @@ export class TicketPolicy {
       throw new ForbiddenException();
   }
   scope(c: CallerContext, teamIds: string[]): Prisma.TicketWhereInput {
-    const visibility: Prisma.TicketWhereInput = this.has(c, 'tickets.view.all')
+    return this.has(c, 'tickets.view.all')
       ? {}
       : this.has(c, 'tickets.view.team')
         ? { teamId: { in: teamIds } }
         : this.has(c, 'tickets.view.assigned')
           ? { employeeId: c.accountId }
           : { id: '__none__' };
-    const branch: Prisma.TicketWhereInput = c.organizationWide
-      ? {}
-      : {
-          OR: [{ branchId: null }, { branchId: { in: c.authorizedBranchIds } }],
-        };
-    return { AND: [visibility, branch] };
   }
   assertVisible(visible: boolean) {
     if (!visible) throw new NotFoundException();

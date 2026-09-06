@@ -19,7 +19,7 @@ export function InternalNotesPanel({
   return (
     <section aria-labelledby="notes-title" className="space-y-3">
       <div>
-        <h3 id="notes-title" className="font-semibold">
+        <h3 id="notes-title" className="font-medium">
           الملاحظات الداخلية
         </h3>
         <p className="text-xs text-muted-foreground">{inboxCopy.privateNote}</p>

@@ -1,95 +1,12 @@
 import type { EntityStatus } from '../../../../prisma/generated/client';
 import type {
   OrganizationRecordPermissions,
-  PublicBranch,
-  PublicDepartment,
   PublicLookupGroup,
   PublicLookupValue,
-  PublicAcademicYear,
-  PublicAcademicTerm,
 } from '../types/organization.types';
 
 const lowerStatus = (status: EntityStatus): Lowercase<EntityStatus> =>
   status.toLowerCase() as Lowercase<EntityStatus>;
-
-export function mapBranch(
-  record: {
-    id: string;
-    organizationId: string;
-    name: string;
-    code: string;
-    address: string;
-    phone: string;
-    email: string;
-    managerId: string | null;
-    workingHours: string;
-    status: EntityStatus;
-    version: number;
-    createdAt: Date;
-    createdBy: string | null;
-    updatedAt: Date;
-    updatedBy: string | null;
-  },
-  permissions: OrganizationRecordPermissions,
-): PublicBranch {
-  return { ...record, status: lowerStatus(record.status), permissions };
-}
-
-export function mapAcademicYear(
-  record: {
-    id: string;
-    organizationId: string;
-    name: string;
-    code: string;
-    startDate: Date;
-    endDate: Date;
-    status: EntityStatus;
-    version: number;
-    createdAt: Date;
-    createdBy: string | null;
-    updatedAt: Date;
-    updatedBy: string | null;
-  },
-  permissions: OrganizationRecordPermissions,
-): PublicAcademicYear {
-  return {
-    ...record,
-    startDate: record.startDate.toISOString().slice(0, 10),
-    endDate: record.endDate.toISOString().slice(0, 10),
-    status: lowerStatus(record.status),
-    permissions,
-  };
-}
-
-export function mapAcademicTerm(
-  record: {
-    id: string;
-    organizationId: string;
-    academicYearId: string;
-    name: string;
-    startDate: Date;
-    endDate: Date;
-    order: number;
-    status: EntityStatus;
-    version: number;
-    createdAt: Date;
-    createdBy: string | null;
-    updatedAt: Date;
-    updatedBy: string | null;
-    academicYear: { name: string };
-  },
-  permissions: OrganizationRecordPermissions,
-): PublicAcademicTerm {
-  const { academicYear, ...value } = record;
-  return {
-    ...value,
-    academicYearName: academicYear.name,
-    startDate: record.startDate.toISOString().slice(0, 10),
-    endDate: record.endDate.toISOString().slice(0, 10),
-    status: lowerStatus(record.status),
-    permissions,
-  };
-}
 
 export function mapLookupGroup(
   record: {
@@ -146,24 +63,7 @@ export function mapLookupValue(
   };
 }
 
-export function mapDepartment(
-  record: {
-    id: string;
-    organizationId: string;
-    name: string;
-    code: string;
-    description: string;
-    status: EntityStatus;
-    version: number;
-    createdAt: Date;
-    createdBy: string | null;
-    updatedAt: Date;
-    updatedBy: string | null;
-  },
-  permissions: OrganizationRecordPermissions,
-): PublicDepartment {
-  return { ...record, status: lowerStatus(record.status), permissions };
-}
+
 
 export function stableByCode<T extends { code: string; id: string }>(
   values: T[],

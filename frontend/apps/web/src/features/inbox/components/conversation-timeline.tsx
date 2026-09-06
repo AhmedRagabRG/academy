@@ -33,7 +33,7 @@ export function ConversationTimeline({
   ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
   return (
     <section>
-      <h3 className="mb-3 font-semibold">سجل المحادثة</h3>
+      <h3 className="mb-3 font-medium">سجل المحادثة</h3>
       {items.length ? (
         <Timeline items={items} />
       ) : (

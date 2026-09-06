@@ -12,6 +12,8 @@ export const inboxPermissions = {
   archive: "inbox.archive",
   delete: "inbox.delete",
   restore: "inbox.restore",
+  viewChannels: "inbox.channels.view",
+  manageChannels: "inbox.channels.manage",
 } as const
 
 export type InboxPermission =

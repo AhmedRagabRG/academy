@@ -1,6 +1,5 @@
 import type {
   AttachmentKind,
-  BranchId,
   ConversationId,
   ConversationStatus,
   CustomerId,
@@ -23,7 +22,6 @@ export interface Customer {
   name: string
   phone: string
   avatarUrl?: string
-  branchId: BranchId
   firstContactAt: string
   lastActivityAt: string
 }
@@ -34,7 +32,6 @@ export interface Employee extends NamedLookup<EmployeeId> {
 }
 
 export type Team = NamedLookup<TeamId>
-export type Branch = NamedLookup<BranchId>
 export interface Platform extends NamedLookup<PlatformId> {
   icon: string
 }

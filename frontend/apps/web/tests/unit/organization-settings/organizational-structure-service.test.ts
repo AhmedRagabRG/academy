@@ -1,4 +1,0 @@
-import { beforeEach, describe, expect, it } from "vitest"
-import { mockOrganizationSettingsService as service } from "@/features/organization-settings/services/mock-organization-settings-service"
-import { mockScenarioController } from "@/features/organization-settings/services/mock-scenario-controller"
-describe("organizational structure service", () => { beforeEach(() => { service.reset(); mockScenarioController.setLatency(0) }); it("rejects duplicate branch codes", async () => { await expect(service.create("branches", { name: "فرع آخر", code: "cai", email: "other@alsalam.academy", address: "القاهرة", phone: "+201000000099", workingHours: "09:00-17:00", status: "active" })).rejects.toMatchObject({ kind: "duplicate" }) }); it("protects the default branch", async () => { const branch = await service.get("branches", "branch-cairo"); await expect(service.changeStatus("branches", branch.id, "archived", branch.version)).rejects.toMatchObject({ kind: "dependency" }) }) })

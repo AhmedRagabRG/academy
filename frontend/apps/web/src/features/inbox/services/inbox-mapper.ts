@@ -1,7 +1,6 @@
 import type {
   Attachment,
   AssignmentHistoryEvent,
-  Branch,
   Customer,
   Employee,
   InternalNote,
@@ -12,7 +11,6 @@ import type {
   Team,
 } from "../types/domain"
 import type {
-  BranchId,
   ConversationId,
   ConversationStatus,
   CustomerId,
@@ -23,7 +21,11 @@ import type {
   TagId,
   TeamId,
 } from "../types/common"
-import type { ConversationDetail, InboxDashboard } from "../types/projections"
+import type {
+  ConversationCrmLink,
+  ConversationDetail,
+  InboxDashboard,
+} from "../types/projections"
 import type { InboxLookups } from "./inbox-service"
 
 export interface ApiAttachment {
@@ -54,12 +56,12 @@ export interface ApiConversation {
   version: number
   deletedAt?: string
   previousStatus?: ConversationStatus
-  customer: Omit<Customer, "id" | "branchId"> & { id: string; branchId: string }
+  customer: Omit<Customer, "id"> & { id: string }
   platform: ApiNamedLookup & { icon: string }
   employee: (ApiNamedLookup & { teamIds: string[]; avatarUrl?: string }) | null
   team: ApiNamedLookup | null
   tags: Array<ApiNamedLookup & { color: string }>
-  branch: ApiNamedLookup
+  crm?: ConversationCrmLink | null
   messages: Array<
     Omit<Message, "id" | "conversationId" | "delivery" | "attachments"> & {
       id: string
@@ -122,7 +124,6 @@ export function toConversation(row: ApiConversation): ConversationDetail {
     customer: {
       ...row.customer,
       id: row.customer.id as CustomerId,
-      branchId: row.customer.branchId as BranchId,
     } as Customer,
     platform: {
       ...row.platform,
@@ -143,7 +144,6 @@ export function toConversation(row: ApiConversation): ConversationDetail {
       id: tag.id as TagId,
       color: toTagColor(tag.color),
     })),
-    branch: { ...row.branch, id: row.branch.id as BranchId } as Branch,
     messages: row.messages.map((message) => ({
       ...message,
       id: message.id as MessageId,
@@ -167,6 +167,8 @@ export function toConversation(row: ApiConversation): ConversationDetail {
       ...event,
       conversationId: event.conversationId as ConversationId,
     })),
+    // Only the detail read carries the CRM link; list rows omit it.
+    crm: row.crm ?? null,
   }
 }
 

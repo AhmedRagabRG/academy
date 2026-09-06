@@ -7,7 +7,6 @@ export interface CallerContext {
   permissionKeys: string[];
   /** @deprecated Transitional compatibility only; new code uses roles/permissionKeys. */
   role?: { id: string; code: string; permissionKeys: string[] };
-  authorizedBranchIds: string[];
   organizationWide: boolean;
   authenticatedAt: string;
 }
@@ -18,7 +17,6 @@ export const EMPTY_CALLER_CONTEXT: CallerContext = {
   sessionId: '',
   roles: [],
   permissionKeys: [],
-  authorizedBranchIds: [],
   organizationWide: false,
   authenticatedAt: '',
 };

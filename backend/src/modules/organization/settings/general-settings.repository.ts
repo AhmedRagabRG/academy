@@ -8,16 +8,6 @@ export class GeneralSettingsRepository {
   get(tx?: Prisma.TransactionClient) {
     return (tx ?? this.prisma).generalSettings.findFirst();
   }
-  activeBranch(id: string, tx?: Prisma.TransactionClient) {
-    return (tx ?? this.prisma).branch.findFirst({
-      where: { id, status: 'ACTIVE', archivedAt: null },
-    });
-  }
-  activeYear(id: string, tx?: Prisma.TransactionClient) {
-    return (tx ?? this.prisma).academicYear.findFirst({
-      where: { id, status: 'ACTIVE', archivedAt: null },
-    });
-  }
   update(
     id: string,
     version: number,

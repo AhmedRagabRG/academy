@@ -23,7 +23,7 @@ export function TicketCommentsPanel({
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold">التعليقات الداخلية</h2>
+        <h2 className="text-lg font-medium">التعليقات الداخلية</h2>
         <span className="text-xs text-muted-foreground">
           مرئية للموظفين فقط
         </span>

@@ -53,7 +53,6 @@ export class AuthGuard implements CanActivate {
         email: account.email,
         roles,
         permissionKeys,
-        authorizedBranchIds: account.branchIds,
         organizationWide: account.organizationWide,
         authenticatedAt: new Date((claims.iat ?? 0) * 1000).toISOString(),
       };

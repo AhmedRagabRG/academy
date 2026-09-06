@@ -15,54 +15,6 @@ export interface OrganizationRecordPermissions {
   changeStatus?: boolean;
 }
 
-export interface PublicBranch extends OrganizationAuditFields {
-  id: string;
-  organizationId: string;
-  name: string;
-  code: string;
-  address: string;
-  phone: string;
-  email: string;
-  managerId: string | null;
-  workingHours: string;
-  status: Lowercase<EntityStatus>;
-  permissions: OrganizationRecordPermissions;
-}
-
-export interface PublicDepartment extends OrganizationAuditFields {
-  id: string;
-  organizationId: string;
-  name: string;
-  code: string;
-  description: string;
-  status: Lowercase<EntityStatus>;
-  permissions: OrganizationRecordPermissions;
-}
-
-export interface PublicAcademicYear extends OrganizationAuditFields {
-  id: string;
-  organizationId: string;
-  name: string;
-  code: string;
-  startDate: string;
-  endDate: string;
-  status: Lowercase<EntityStatus>;
-  permissions: OrganizationRecordPermissions;
-}
-
-export interface PublicAcademicTerm extends OrganizationAuditFields {
-  id: string;
-  organizationId: string;
-  academicYearId: string;
-  academicYearName: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  order: number;
-  status: Lowercase<EntityStatus>;
-  permissions: OrganizationRecordPermissions;
-}
-
 export type OrganizationAsset = FileDescriptor;
 
 export interface MasterDataOption {

@@ -7,6 +7,7 @@ import { InboxListDto } from '../../../src/modules/inbox/dto/inbox.dto';
 import { InboxPolicy } from '../../../src/modules/inbox/inbox.policy';
 import { InboxRepository } from '../../../src/modules/inbox/inbox.repository';
 import { InboxService } from '../../../src/modules/inbox/inbox.service';
+import type { InboxCrmLinkService } from '../../../src/modules/inbox/crm/inbox-crm-link.service';
 import type { CallerContext } from '../../../src/shared/types/caller-context';
 import type { StorageService } from '../../../src/storage/storage.service.interface';
 
@@ -24,7 +25,12 @@ const delivery: InboxDeliveryPort = {
       providerReference: `local:${request.messageId}`,
     }),
   ),
+  markRead: jest.fn(() => Promise.resolve()),
 };
+const crm = {
+  link: jest.fn(() => Promise.resolve()),
+  summary: jest.fn(() => Promise.resolve(null)),
+} as unknown as InboxCrmLinkService;
 const storage: StorageService = {
   store: jest.fn((file) =>
     Promise.resolve({
@@ -40,7 +46,7 @@ const storage: StorageService = {
   remove: jest.fn(() => Promise.resolve()),
   publicUrl: jest.fn(),
 };
-const service = new InboxService(repository, policy, delivery, storage);
+const service = new InboxService(repository, policy, delivery, storage, crm);
 
 const permissions = [
   'inbox.view.all',
@@ -212,8 +218,16 @@ describe('Inbox persisted behavioral contract', () => {
         { teamId: teamB, employeeId: otherId },
       ],
     });
+    // A non-Meta platform: these cases exercise local delivery, and the Meta
+    // channels reject attachments the provider cannot carry yet.
     platformId = (
-      await prisma.inboxPlatform.findFirstOrThrow({ where: { organizationId } })
+      await prisma.inboxPlatform.findFirstOrThrow({
+        where: {
+          organizationId,
+          code: { notIn: ['whatsapp', 'messenger', 'instagram'] },
+        },
+        orderBy: { code: 'asc' },
+      })
     ).id;
     tagId = (
       await prisma.inboxTag.findFirstOrThrow({ where: { organizationId } })

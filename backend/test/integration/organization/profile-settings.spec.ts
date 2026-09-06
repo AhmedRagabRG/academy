@@ -6,13 +6,10 @@ const prisma = new PrismaClient({
 });
 describe('profile and settings aggregates', () => {
   afterAll(() => prisma.$disconnect());
-  it('has one legal profile, primary contacts, and active defaults', async () => {
-    const [profiles, settings] = await Promise.all([
-      prisma.organization.findMany({ include: { contacts: true } }),
-      prisma.generalSettings.findFirstOrThrow({
-        include: { defaultBranch: true, defaultAcademicYear: true },
-      }),
-    ]);
+  it('has one legal profile with primary contacts', async () => {
+    const profiles = await prisma.organization.findMany({
+      include: { contacts: true },
+    });
     expect(profiles).toHaveLength(1);
     expect(
       profiles[0].contacts
@@ -20,7 +17,5 @@ describe('profile and settings aggregates', () => {
         .map((x) => x.type)
         .sort(),
     ).toEqual(['EMAIL', 'PHONE']);
-    expect(settings.defaultBranch.status).toBe('ACTIVE');
-    expect(settings.defaultAcademicYear.status).toBe('ACTIVE');
   });
 });

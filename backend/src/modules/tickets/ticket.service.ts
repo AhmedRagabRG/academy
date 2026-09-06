@@ -40,8 +40,6 @@ type Aggregate = Prisma.TicketGetPayload<{
   include: { comments: true; activities: true; attachments: true };
 }>;
 interface ProjectionReferences {
-  departments: Map<string, string>;
-  branches: Map<string, string>;
   teams: Map<string, string>;
   employees: Map<string, string>;
   students: Map<string, string>;
@@ -91,20 +89,8 @@ export class TicketService {
     c: CallerContext,
     references?: ProjectionReferences,
   ) {
-    const [department, branch, team, employee, student, customer] =
+    const [team, employee] =
       await Promise.all([
-        references
-          ? null
-          : this.repo.db.department.findUnique({
-              where: { id: row.departmentId },
-              select: { name: true },
-            }),
-        row.branchId && !references
-          ? this.repo.db.branch.findUnique({
-              where: { id: row.branchId },
-              select: { name: true },
-            })
-          : null,
         row.teamId && !references
           ? this.repo.db.ticketTeam.findUnique({
               where: { id: row.teamId },
@@ -117,18 +103,6 @@ export class TicketService {
               select: { displayName: true },
             })
           : null,
-        row.studentId && !references
-          ? this.repo.db.student.findUnique({
-              where: { id: row.studentId },
-              select: { fullName: true },
-            })
-          : null,
-        row.customerId && !references
-          ? this.repo.db.applicant.findUnique({
-              where: { id: row.customerId },
-              select: { fullName: true },
-            })
-          : null,
       ]);
     return {
       id: row.id,
@@ -139,8 +113,6 @@ export class TicketService {
       status: wire(row.status),
       lastActiveStatus: wire(row.lastActiveStatus),
       priority: wire(row.priority),
-      departmentId: row.departmentId,
-      branchId: row.branchId ?? undefined,
       teamId: row.teamId ?? undefined,
       employeeId: row.employeeId ?? undefined,
       customerId: row.customerId ?? undefined,
@@ -153,11 +125,6 @@ export class TicketService {
       updatedAt: row.updatedAt.toISOString(),
       completedAt: row.completedAt?.toISOString(),
       version: row.version,
-      departmentName:
-        references?.departments.get(row.departmentId) ?? department?.name ?? '',
-      branchName: row.branchId
-        ? (references?.branches.get(row.branchId) ?? branch?.name)
-        : undefined,
       teamName: row.teamId
         ? (references?.teams.get(row.teamId) ?? team?.name)
         : undefined,
@@ -165,10 +132,10 @@ export class TicketService {
         ? (references?.employees.get(row.employeeId) ?? employee?.displayName)
         : undefined,
       customerName: row.customerId
-        ? (references?.customers.get(row.customerId) ?? customer?.fullName)
+        ? (references?.customers.get(row.customerId) ?? undefined)
         : undefined,
       studentName: row.studentId
-        ? (references?.students.get(row.studentId) ?? student?.fullName)
+        ? (references?.students.get(row.studentId) ?? undefined)
         : undefined,
       commentCount:
         references?.commentCounts.get(row.id) ?? row.comments.length,
@@ -221,26 +188,6 @@ export class TicketService {
     dto: Partial<CreateTicketDto> | AssignmentDto,
   ) {
     if (
-      'departmentId' in dto &&
-      dto.departmentId &&
-      !(await this.repo.db.department.findFirst({
-        where: { id: dto.departmentId, organizationId: org, status: 'ACTIVE' },
-      }))
-    )
-      throw new DomainException('validation', 'القسم غير صالح', 422, [
-        { field: 'departmentId', message: 'not-found-or-inactive' },
-      ]);
-    if (
-      'branchId' in dto &&
-      dto.branchId &&
-      !(await this.repo.db.branch.findFirst({
-        where: { id: dto.branchId, organizationId: org, status: 'ACTIVE' },
-      }))
-    )
-      throw new DomainException('validation', 'الفرع غير صالح', 422, [
-        { field: 'branchId', message: 'not-found-or-inactive' },
-      ]);
-    if (
       dto.teamId &&
       !(await this.repo.db.ticketTeam.findFirst({
         where: { id: dto.teamId, organizationId: org, active: true },
@@ -266,14 +213,6 @@ export class TicketService {
         'الموظف ليس عضواً نشطاً في الفريق',
         422,
       );
-  }
-  private assertBranchAccess(c: CallerContext, branchId?: string) {
-    if (
-      branchId &&
-      !c.organizationWide &&
-      !c.authorizedBranchIds.includes(branchId)
-    )
-      throw new DomainException('forbidden', 'الفرع خارج نطاق صلاحياتك', 403);
   }
   private assertActive(ticket: Ticket) {
     if (ticket.status === 'ARCHIVED' || ticket.archivedAt)
@@ -303,22 +242,8 @@ export class TicketService {
       [
         ...new Set(scopedTickets.map((ticket) => ticket[key]).filter(Boolean)),
       ] as string[];
-    const [departments, branches, teams, employees, students, customers] =
+    const [teams, employees] =
       await Promise.all([
-        this.repo.db.department.findMany({
-          where: { organizationId: org, status: 'ACTIVE' },
-          select: { id: true, name: true },
-        }),
-        this.repo.db.branch.findMany({
-          where: {
-            organizationId: org,
-            status: 'ACTIVE',
-            ...(c.organizationWide
-              ? {}
-              : { id: { in: c.authorizedBranchIds } }),
-          },
-          select: { id: true, name: true },
-        }),
         this.repo.db.ticketTeam.findMany({
           where: {
             organizationId: org,
@@ -330,24 +255,6 @@ export class TicketService {
         this.repo.db.account.findMany({
           where: { status: 'ACTIVE', id: { in: scopedIds('employeeId') } },
           select: { id: true, displayName: true },
-        }),
-        this.repo.db.student.findMany({
-          where: {
-            organizationId: org,
-            status: 'ACTIVE',
-            id: { in: scopedIds('studentId') },
-          },
-          take: 100,
-          select: { id: true, fullName: true },
-        }),
-        this.repo.db.applicant.findMany({
-          where: {
-            organizationId: org,
-            status: 'ACTIVE',
-            id: { in: scopedIds('customerId') },
-          },
-          take: 100,
-          select: { id: true, fullName: true },
         }),
       ]);
     const memberships = await this.repo.db.ticketTeamMembership.findMany({
@@ -362,8 +269,6 @@ export class TicketService {
         tone: id,
         order,
       })),
-      departments,
-      branches,
       teams,
       employees: employees.map((e) => ({
         id: e.id,
@@ -372,8 +277,8 @@ export class TicketService {
           .filter((m) => m.employeeId === e.id)
           .map((m) => m.teamId),
       })),
-      customers: customers.map((x) => ({ id: x.id, name: x.fullName })),
-      students: students.map((x) => ({ id: x.id, name: x.fullName })),
+      customers: [],
+      students: [],
       conversations: [],
       tags: [...new Set(scopedTickets.flatMap((x) => x.tags))],
       attachment: uploadConstraint('ticket-attachment', limit),
@@ -385,26 +290,6 @@ export class TicketService {
     const cursor = this.repo.decode(q.cursor, fingerprint, q.sort);
     const snapshotAt = cursor?.snapshotAt ?? new Date().toISOString();
     const search = q.search?.trim();
-    const [matchingCustomers, matchingStudents] = search
-      ? await Promise.all([
-          this.repo.db.applicant.findMany({
-            where: {
-              organizationId: org,
-              fullName: { contains: search, mode: 'insensitive' },
-            },
-            select: { id: true },
-            take: 500,
-          }),
-          this.repo.db.student.findMany({
-            where: {
-              organizationId: org,
-              fullName: { contains: search, mode: 'insensitive' },
-            },
-            select: { id: true },
-            take: 500,
-          }),
-        ])
-      : [[], []];
     const cursorWhere: Prisma.TicketWhereInput | undefined = cursor
       ? q.sort === 'oldest'
         ? {
@@ -475,8 +360,6 @@ export class TicketService {
         : {}),
       ...(q.teamId ? { teamId: { in: q.teamId } } : {}),
       ...(q.employeeId ? { employeeId: { in: q.employeeId } } : {}),
-      ...(q.departmentId ? { departmentId: { in: q.departmentId } } : {}),
-      ...(q.branchId ? { branchId: { in: q.branchId } } : {}),
       ...(q.tag ? { tags: { hasSome: q.tag } } : {}),
       ...(q.createdBy ? { createdBy: { in: q.createdBy } } : {}),
       ...(search
@@ -486,8 +369,6 @@ export class TicketService {
               { title: { contains: search, mode: 'insensitive' } },
               { description: { contains: search, mode: 'insensitive' } },
               { tags: { has: search } },
-              { customerId: { in: matchingCustomers.map(({ id }) => id) } },
-              { studentId: { in: matchingStudents.map(({ id }) => id) } },
             ],
           }
         : {}),
@@ -515,22 +396,10 @@ export class TicketService {
     const ids = <K extends keyof Ticket>(key: K) =>
       [...new Set(slice.map((row) => row[key]).filter(Boolean))] as string[];
     const [
-      departments,
-      branches,
       teams,
       employees,
-      students,
-      customers,
       counts,
     ] = await Promise.all([
-      this.repo.db.department.findMany({
-        where: { id: { in: ids('departmentId') } },
-        select: { id: true, name: true },
-      }),
-      this.repo.db.branch.findMany({
-        where: { id: { in: ids('branchId') } },
-        select: { id: true, name: true },
-      }),
       this.repo.db.ticketTeam.findMany({
         where: { id: { in: ids('teamId') } },
         select: { id: true, name: true },
@@ -539,14 +408,6 @@ export class TicketService {
         where: { id: { in: ids('employeeId') } },
         select: { id: true, displayName: true },
       }),
-      this.repo.db.student.findMany({
-        where: { id: { in: ids('studentId') }, organizationId: org },
-        select: { id: true, fullName: true },
-      }),
-      this.repo.db.applicant.findMany({
-        where: { id: { in: ids('customerId') }, organizationId: org },
-        select: { id: true, fullName: true },
-      }),
       this.repo.db.ticketComment.groupBy({
         by: ['ticketId'],
         where: { ticketId: { in: slice.map(({ id }) => id) }, deletedAt: null },
@@ -554,12 +415,10 @@ export class TicketService {
       }),
     ]);
     const refs: ProjectionReferences = {
-      departments: new Map(departments.map((x) => [x.id, x.name])),
-      branches: new Map(branches.map((x) => [x.id, x.name])),
       teams: new Map(teams.map((x) => [x.id, x.name])),
       employees: new Map(employees.map((x) => [x.id, x.displayName])),
-      students: new Map(students.map((x) => [x.id, x.fullName])),
-      customers: new Map(customers.map((x) => [x.id, x.fullName])),
+      students: new Map(),
+      customers: new Map(),
       commentCounts: new Map(counts.map((x) => [x.ticketId, x._count._all])),
     };
     const last = slice.at(-1);
@@ -631,7 +490,6 @@ export class TicketService {
   }
   async create(c: CallerContext, dto: CreateTicketDto) {
     this.policy.assert(c, 'tickets.create');
-    this.assertBranchAccess(c, dto.branchId);
     const org = await this.repo.organizationId();
     await this.assertRefs(org, dto);
     const row = await this.repo.db.$transaction(async (tx) => {
@@ -650,8 +508,6 @@ export class TicketService {
           lastActiveStatus: dbStatus(dto.status),
           priority: dto.priority.toUpperCase() as Ticket['priority'],
           priorityRank: priorityRank(dto.priority),
-          departmentId: dto.departmentId,
-          branchId: dto.branchId,
           teamId: dto.teamId,
           employeeId: dto.employeeId,
           customerId: dto.customerId,
@@ -736,7 +592,6 @@ export class TicketService {
   }
   async update(c: CallerContext, id: string, dto: UpdateTicketDto) {
     this.policy.assert(c, 'tickets.edit');
-    this.assertBranchAccess(c, dto.branchId);
     const org = await this.repo.organizationId();
     await this.assertRefs(org, dto);
     const old = await this.repo.visible(c, id);

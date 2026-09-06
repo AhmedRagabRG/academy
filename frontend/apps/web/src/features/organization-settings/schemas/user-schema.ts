@@ -23,7 +23,7 @@ const password = z
   .regex(/\d/, "يجب أن تحتوي كلمة المرور على رقم")
   .regex(/[^A-Za-z0-9]/, "يجب أن تحتوي كلمة المرور على رمز")
 
-export const userSchema = z.object({ fullName: z.string().trim().min(3), email: z.email("البريد الإلكتروني غير صالح").transform((value) => value.toLowerCase()), phone, branchId: z.string().min(1), branchName: z.string().min(1), departmentId: z.string().min(1), departmentName: z.string().min(1), roleIds: z.array(z.string()).min(1, "اختر دورًا واحدًا على الأقل"), status: z.enum(["active", "inactive"]) })
+export const userSchema = z.object({ fullName: z.string().trim().min(3), email: z.email("البريد الإلكتروني غير صالح").transform((value) => value.toLowerCase()), phone, roleIds: z.array(z.string()).min(1, "اختر دورًا واحدًا على الأقل"), status: z.enum(["active", "inactive"]) })
 /** Creating an employee also sets the initial password; editing never does. */
 export const createUserSchema = userSchema.safeExtend({ password })
 export type UserInput = z.infer<typeof userSchema>

@@ -6,15 +6,11 @@ import { TicketForm } from "@/features/tickets/forms/ticket-form"
 import { ticketConfiguration } from "@/features/tickets/config/ticket-configuration"
 
 describe("Ticket API-backed forms", () => {
-  it("submits the department UUID supplied by the backend configuration", async () => {
+  it("submits the ticket details supplied by the user", async () => {
     const onSubmit = vi.fn()
-    const departmentId = "8ed9517e-8fb9-4fb7-8ca4-943b6761ade8"
     render(
       <TicketForm
-        configuration={{
-          ...ticketConfiguration,
-          departments: [{ id: departmentId, name: "خدمة العملاء" }],
-        }}
+        configuration={ticketConfiguration}
         onSubmit={onSubmit}
       />
     )
@@ -24,7 +20,12 @@ describe("Ticket API-backed forms", () => {
     await userEvent.click(screen.getByRole("button", { name: "إنشاء التذكرة" }))
 
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ departmentId }),
+      expect.objectContaining({
+        title: "طلب متابعة جديد",
+        description: "تفاصيل طلب المتابعة",
+        status: "backlog",
+        priority: "medium",
+      }),
       expect.anything()
     )
   })

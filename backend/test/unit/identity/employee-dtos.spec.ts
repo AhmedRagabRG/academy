@@ -17,7 +17,6 @@ describe('employee DTO contracts', () => {
       email: 'admin@example.com',
       phone: '+201000000001',
       roleIds: [uuid],
-      branchIds: [uuid],
       password: 'StrongPass1!',
       status: 'active',
     });
@@ -31,7 +30,6 @@ describe('employee DTO contracts', () => {
       email: 'bad',
       phone: '12',
       roleIds: [],
-      branchIds: [],
       password: '',
       status: 'bad',
     });

@@ -61,7 +61,6 @@ export class InboxRepository {
       statuses: [...q.statuses].sort(),
       employeeIds: [...q.employeeIds].sort(),
       teamIds: [...q.teamIds].sort(),
-      branchIds: [...q.branchIds].sort(),
       tagIds: [...q.tagIds].sort(),
       unreadOnly: q.unreadOnly,
       sort: q.sort,

@@ -11,7 +11,7 @@ describe("navigation contracts", () => {
   it("derives the active item", () =>
     expect(findActiveItem(foundationNavigation, "/dashboard")?.id).toBe("dashboard"))
   it("derives the active item inside a group", () =>
-    expect(findActiveItem(foundationNavigation, "/settings/branches")?.id).toBe(
-      "settings-branches"
+    expect(findActiveItem(foundationNavigation, "/settings/users")?.id).toBe(
+      "settings-users"
     ))
 })

@@ -17,8 +17,6 @@ describe('profile and settings DTOs', () => {
       dateFormat: 'x',
       numberFormat: 'x',
       workingDays: [],
-      defaultBranchId: 'bad',
-      defaultAcademicYearId: 'bad',
     });
     expect(await validate(dto)).not.toHaveLength(0);
   });

@@ -32,14 +32,6 @@ export class ExpectedVersionDto {
   expectedVersion!: number;
 }
 
-export class ExpectedAcademicYearVersionDto {
-  @ApiProperty({ minimum: 1, example: 1 })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  expectedAcademicYearVersion!: number;
-}
-
 export class OrganizationStatusDto extends ExpectedVersionDto {
   @ApiProperty({ enum: ['active', 'inactive', 'archived'] })
   @Transform(uppercaseOrganizationStatus)

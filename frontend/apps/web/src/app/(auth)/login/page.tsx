@@ -11,7 +11,7 @@ export default function LoginPage() {
       <div className="p-8 sm:p-10">
       <div className="mb-8 text-start">
         <BrandLogo priority className="mb-7 w-48" />
-        <h1 className="text-2xl font-bold text-brand-navy dark:text-card-foreground">مرحبًا بعودتك</h1>
+        <h1 className="text-2xl font-medium text-brand-navy dark:text-card-foreground">مرحبًا بعودتك</h1>
       </div>
       <LoginForm />
       </div>

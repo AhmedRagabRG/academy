@@ -36,7 +36,7 @@ export function CreateTicketDialog({
             className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-background p-6 shadow-xl"
           >
             <div className="mb-5 flex items-center justify-between">
-              <h2 id="create-ticket-title" className="text-xl font-bold">
+              <h2 id="create-ticket-title" className="text-xl font-medium">
                 إنشاء تذكرة جديدة
               </h2>
               <Button

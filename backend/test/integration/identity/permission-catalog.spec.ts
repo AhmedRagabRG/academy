@@ -12,15 +12,14 @@ describe('canonical permission catalogue', () => {
     expect(totals).toEqual({
       dashboard: 1,
       settings: 29,
-      catalog: 20,
-      batches: 13,
-      admissions: 18,
-      students: 15,
-      finance: 16,
-      accounting: 16,
+      tickets: 15,
+      inbox: 15,
+      contacts: 9,
+      pipeline: 6,
+      campaigns: 6,
     });
     expect(PERMISSION_CATALOG.map(({ displayOrder }) => displayOrder)).toEqual(
-      Array.from({ length: 128 }, (_, index) => index),
+      Array.from({ length: 81 }, (_, index) => index),
     );
     expect(
       PERMISSION_CATALOG.every(

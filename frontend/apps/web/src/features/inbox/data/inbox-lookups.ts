@@ -1,6 +1,5 @@
-import type { Branch, Employee, Platform, Tag, Team } from "../types/domain"
+import type { Employee, Platform, Tag, Team } from "../types/domain"
 import type {
-  BranchId,
   EmployeeId,
   PlatformId,
   TagId,
@@ -30,10 +29,6 @@ export const employees: Employee[] = [
     active: true,
     teamIds: ["team-support" as TeamId],
   },
-]
-export const branches: Branch[] = [
-  { id: "branch-main" as BranchId, label: "الفرع الرئيسي", active: true },
-  { id: "branch-nasr" as BranchId, label: "فرع مدينة نصر", active: true },
 ]
 export const platforms: Platform[] = [
   {

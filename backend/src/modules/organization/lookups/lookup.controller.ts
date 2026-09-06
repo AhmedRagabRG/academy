@@ -50,17 +50,7 @@ export class LookupController {
   @RequirePermissions('settings.general.view')
   @ApiOrganizationRead('القيم المعيارية', Object)
   async standards() {
-    const [branches, departments, academicYears, academicTerms] =
-      await Promise.all([
-        this.publicLookups.selectable('branch'),
-        this.publicLookups.selectable('department'),
-        this.publicLookups.selectable('academicYear'),
-        this.publicLookups.selectable('academicTerm'),
-      ]);
-    return {
-      ...this.publicLookups.standards(),
-      masterData: { branches, departments, academicYears, academicTerms },
-    };
+    return this.publicLookups.standards();
   }
   @Get('lookup-groups')
   @RequirePermissions('settings.lookups.view')

@@ -66,7 +66,7 @@ export function TicketDetailScreen({ ticketId }: { ticketId: TicketId }) {
         <div className="space-y-5">
           <Card>
             <div className="flex flex-wrap items-center gap-3">
-              <bdi dir="ltr" className="font-semibold">
+              <bdi dir="ltr" className="font-medium">
                 {ticket.number}
               </bdi>
               <TicketPriorityBadge priority={ticket.priority} />
@@ -108,14 +108,6 @@ export function TicketDetailScreen({ ticketId }: { ticketId: TicketId }) {
               </label>
             </div>
             <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-muted-foreground">القسم</dt>
-                <dd>{ticket.departmentName}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">الفرع</dt>
-                <dd>{ticket.branchName ?? "غير محدد"}</dd>
-              </div>
               <div>
                 <dt className="text-muted-foreground">العميل</dt>
                 <dd>{ticket.customerName ?? "غير مرتبط"}</dd>

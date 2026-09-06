@@ -20,7 +20,7 @@ export function BrandLogo({ variant = "full", className, priority = false }: Bra
           sizes="40px"
           className="size-full object-contain"
         />
-        <span className="sr-only">أكاديمية السلام المهنية</span>
+        <span className="sr-only">أكاديمية السلام المهني</span>
       </span>
     )
   }
@@ -28,7 +28,7 @@ export function BrandLogo({ variant = "full", className, priority = false }: Bra
   return (
     <Image
       src={logo}
-      alt="أكاديمية السلام المهنية — تطوير المهارات، بناء المستقبل"
+      alt="أكاديمية السلام المهني — تطوير المهارات، بناء المستقبل"
       loading={priority ? "eager" : undefined}
       sizes="(max-width: 640px) 180px, 220px"
       className={cn("h-auto w-44 object-contain", className)}

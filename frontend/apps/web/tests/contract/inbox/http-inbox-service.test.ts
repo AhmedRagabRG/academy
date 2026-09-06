@@ -32,7 +32,6 @@ const apiConversation = {
     id: "customer-id",
     name: "عميل",
     phone: "0100",
-    branchId: "branch-id",
     firstContactAt: "2026-08-01T08:00:00.000Z",
     lastActivityAt: "2026-08-10T08:00:00.000Z",
   },
@@ -45,7 +44,6 @@ const apiConversation = {
   employee: { id: "employee-id", label: "موظف", active: true, teamIds: [] },
   team: { id: "team-id", label: "فريق", active: true },
   tags: [{ id: tagId, label: "هام", color: "unknown-color", active: true }],
-  branch: { id: "branch-id", label: "القاهرة", active: true },
   messages: [
     {
       id: "message-id",
@@ -103,7 +101,6 @@ const query: InboxListQuery = {
   statuses: ["open", "pending"],
   employeeIds: ["employee-id" as EmployeeId],
   teamIds: ["team-id" as never],
-  branchIds: ["branch-id" as never],
   tagIds: [tagId],
   unreadOnly: true,
   sort: "unread",
@@ -152,7 +149,6 @@ describe("HTTP InboxService transport contract", () => {
         platforms: [],
         statuses: [{ id: "open", label: "مفتوحة" }],
         tags: [],
-        branches: [],
         teams: [],
         employees: [],
       })

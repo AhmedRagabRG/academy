@@ -58,16 +58,6 @@ export class TicketListDto {
   @IsOptional()
   @Transform(array)
   @IsArray()
-  @IsUUID('4', { each: true })
-  departmentId?: string[];
-  @IsOptional()
-  @Transform(array)
-  @IsArray()
-  @IsUUID('4', { each: true })
-  branchId?: string[];
-  @IsOptional()
-  @Transform(array)
-  @IsArray()
   @IsString({ each: true })
   tag?: string[];
   @IsOptional()
@@ -88,8 +78,6 @@ export class CreateTicketDto {
   @IsString() @MinLength(3) @MaxLength(10000) description!: string;
   @IsIn(TICKET_STATUSES) status!: string;
   @IsIn(TICKET_PRIORITIES) priority!: string;
-  @IsUUID() departmentId!: string;
-  @IsOptional() @IsUUID() branchId?: string;
   @IsOptional() @IsUUID() teamId?: string;
   @IsOptional() @IsUUID() employeeId?: string;
   @IsOptional() @IsUUID() customerId?: string;
@@ -107,8 +95,6 @@ export class UpdateTicketDto {
   @MinLength(3)
   @MaxLength(10000)
   description?: string;
-  @IsOptional() @IsUUID() departmentId?: string;
-  @IsOptional() @IsUUID() branchId?: string;
   @IsOptional() @IsUUID() customerId?: string;
   @IsOptional() @IsUUID() studentId?: string;
   @IsOptional() @IsUUID() conversationId?: string;

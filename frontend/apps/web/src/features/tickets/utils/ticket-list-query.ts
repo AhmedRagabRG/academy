@@ -17,8 +17,6 @@ export function filterAndSortTickets(tickets: Ticket[], query: TicketListQuery, 
     if (f?.priorities?.length && !f.priorities.includes(ticket.priority)) return false
     if (f?.teamIds?.length && (!ticket.teamId || !f.teamIds.includes(ticket.teamId))) return false
     if (f?.employeeIds?.length && (!ticket.employeeId || !f.employeeIds.includes(ticket.employeeId))) return false
-    if (f?.departmentIds?.length && !f.departmentIds.includes(ticket.departmentId)) return false
-    if (f?.branchIds?.length && (!ticket.branchId || !f.branchIds.includes(ticket.branchId))) return false
     if (f?.tags?.length && !f.tags.some((tag) => ticket.tags.includes(tag))) return false
     return true
   }).sort((a, b) => {

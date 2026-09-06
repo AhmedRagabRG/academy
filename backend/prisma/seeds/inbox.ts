@@ -8,11 +8,6 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
   const organization = await prisma.organization.findFirstOrThrow({
     select: { id: true },
   });
-  const branches = await prisma.branch.findMany({
-    where: { organizationId: organization.id, status: 'ACTIVE' },
-    orderBy: { code: 'asc' },
-    take: 2,
-  });
   const accounts = await prisma.account.findMany({
     where: { status: 'ACTIVE' },
     orderBy: { createdAt: 'asc' },
@@ -23,7 +18,7 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
     orderBy: { createdAt: 'asc' },
     take: 2,
   });
-  if (!branches.length || !accounts.length) return;
+  if (!accounts.length) return;
   const platformRows = [
     ['whatsapp', 'واتساب', 'MessageCircle'],
     ['messenger', 'فيسبوك ماسنجر', 'Facebook'],
@@ -34,11 +29,17 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
   const platforms = [];
   for (let i = 0; i < platformRows.length; i++)
     platforms.push(
+      // Keyed on the natural (organization, code) pair: the fixed ids drifted
+      // when the Meta channels were prepended to this list.
       await prisma.inboxPlatform.upsert({
-        where: { id: uuid('1000', i + 1) },
+        where: {
+          organizationId_code: {
+            organizationId: organization.id,
+            code: platformRows[i][0],
+          },
+        },
         update: {},
         create: {
-          id: uuid('1000', i + 1),
           organizationId: organization.id,
           code: platformRows[i][0],
           label: platformRows[i][1],
@@ -57,10 +58,14 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
   for (let i = 0; i < tagRows.length; i++)
     tags.push(
       await prisma.inboxTag.upsert({
-        where: { id: uuid('2000', i + 1) },
+        where: {
+          organizationId_code: {
+            organizationId: organization.id,
+            code: tagRows[i][0],
+          },
+        },
         update: {},
         create: {
-          id: uuid('2000', i + 1),
           organizationId: organization.id,
           code: tagRows[i][0],
           label: tagRows[i][1],
@@ -93,7 +98,6 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
   for (let i = 0; i < names.length; i++) {
     const customerId = uuid('3000', i + 1),
       conversationId = uuid('4000', i + 1);
-    const branch = branches[i % branches.length];
     const lastActivityAt = new Date(base - i * 3_600_000);
     await prisma.inboxCustomer.upsert({
       where: { id: customerId },
@@ -101,7 +105,6 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
       create: {
         id: customerId,
         organizationId: organization.id,
-        branchId: branch.id,
         name: names[i],
         normalizedName: normalizeArabic(names[i]),
         phone: `+20 10 5555 ${1100 + i}`,

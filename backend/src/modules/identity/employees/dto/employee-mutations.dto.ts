@@ -24,8 +24,6 @@ export class CreateEmployeeDto {
   @IsString() @MaxLength(150) displayName!: string;
   @Matches(/^\+[1-9]\d{7,14}$/) phone!: string;
   @IsOptional() @IsString() position?: string;
-  @IsOptional() @IsUUID() departmentId?: string;
-  @IsArray() @IsUUID('4', { each: true }) branchIds!: string[];
   @IsArray() @IsUUID('4', { each: true }) roleIds!: string[];
   @IsString() @MinLength(1) password!: string;
   @Transform(uppercaseStatus)
@@ -38,8 +36,6 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsString() @MaxLength(150) displayName?: string;
   @IsOptional() @Matches(/^\+[1-9]\d{7,14}$/) phone?: string;
   @IsOptional() @IsString() position?: string;
-  @IsOptional() @IsUUID() departmentId?: string;
-  @IsOptional() @IsArray() @IsUUID('4', { each: true }) branchIds?: string[];
   @IsOptional() @IsArray() @IsUUID('4', { each: true }) roleIds?: string[];
   @IsOptional() @IsObject() avatar?: Record<string, unknown>;
   @IsInt() @Min(1) expectedVersion!: number;

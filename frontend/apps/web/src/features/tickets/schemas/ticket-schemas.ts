@@ -7,8 +7,6 @@ export const createTicketSchema = z.object({
   description: z.string().trim().min(3, "الوصف مطلوب").max(10000),
   status: ticketStatusSchema.exclude(["archived"]),
   priority: ticketPrioritySchema,
-  departmentId: z.string().min(1, "القسم مطلوب"),
-  branchId: z.string().optional(),
   teamId: z.string().optional(),
   employeeId: z.string().optional(),
   customerId: z.string().optional(),

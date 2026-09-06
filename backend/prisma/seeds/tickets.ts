@@ -4,12 +4,6 @@ const TEAM_ID = '00000000-0000-4000-8000-000000000901';
 const TICKET_ID = '00000000-0000-4000-8000-000000000902';
 export async function seedTickets(prisma: PrismaClient): Promise<void> {
   const organization = await prisma.organization.findFirstOrThrow();
-  const department = await prisma.department.findFirstOrThrow({
-    where: { organizationId: organization.id },
-  });
-  const branch = await prisma.branch.findFirst({
-    where: { organizationId: organization.id },
-  });
   const account = await prisma.account.findFirstOrThrow({
     orderBy: { createdAt: 'asc' },
   });
@@ -40,8 +34,6 @@ export async function seedTickets(prisma: PrismaClient): Promise<void> {
       lastActiveStatus: 'BACKLOG',
       priority: 'MEDIUM',
       priorityRank: 2,
-      departmentId: department.id,
-      branchId: branch?.id,
       teamId: TEAM_ID,
       employeeId: account.id,
       tags: ['متابعة'],

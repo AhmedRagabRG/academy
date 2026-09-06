@@ -60,11 +60,6 @@ export class InboxListDto {
   @Transform(array)
   @IsArray()
   @IsUUID('4', { each: true })
-  branchIds: string[] = [];
-  @IsOptional()
-  @Transform(array)
-  @IsArray()
-  @IsUUID('4', { each: true })
   tagIds: string[] = [];
   @IsOptional() @Transform(bool) @IsBoolean() unreadOnly = false;
   @IsOptional() @IsIn(['latest', 'oldest', 'unread']) sort = 'latest';

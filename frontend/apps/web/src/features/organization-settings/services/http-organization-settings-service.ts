@@ -1,6 +1,5 @@
 import type { EntityStatus, ListQuery, LookupOption, PaginatedResult } from "../types/common"
 import type {
-  AcademicYear,
   GeneralSettings,
   OrganizationProfile,
   PermissionGroup,
@@ -14,20 +13,12 @@ import type {
   OrganizationSettingsService,
 } from "./organization-settings-service"
 import {
-  toAcademicTerm,
-  toAcademicYear,
-  toBranch,
-  toDepartment,
   toGeneralSettings,
   toInternalUser,
   toOrganizationProfile,
   toPaginated,
   toPermissionGroup,
   toRole,
-  type ApiAcademicTerm,
-  type ApiAcademicYear,
-  type ApiBranch,
-  type ApiDepartment,
   type ApiEmployee,
   type ApiGeneralSettings,
   type ApiOrganizationProfile,
@@ -37,51 +28,27 @@ import {
 import { ApiError, httpClient, type QueryValue } from "@/shared/api"
 
 const PATHS: Record<EntityKind, string> = {
-  branches: "/settings/branches",
-  departments: "/settings/departments",
-  "academic-years": "/settings/academic-years",
-  "academic-terms": "/settings/academic-terms",
   users: "/settings/users",
   roles: "/settings/roles",
 }
 
 /**
  * Field names as the forms know them, keyed by the name the API reports.
- *
- * A rejected write names the field it rejected, and that message has to land
- * on the input the user can actually see. The request body already renames
- * these on the way out — `fullName` becomes `displayName`, a single `branchId`
- * becomes `branchIds` — so the error has to be renamed on the way back, or it
- * attaches to a field that does not exist and silently disappears.
  */
 const FIELD_ALIASES: Partial<Record<EntityKind, Record<string, string>>> = {
-  users: { displayName: "fullName", branchIds: "branchId" },
+  users: { displayName: "fullName" },
   roles: { displayName: "name" },
 }
 
 /**
  * Duplicate codes the identity module raises instead of `DUPLICATE_VALUE`,
  * mapped to the field each one is about.
- *
- * These arrive with no `details`, so without this the message would reach the
- * user as a bare conflict with nothing marked — the one thing a "value already
- * in use" error has to point at is the value. The organization routes raise
- * the generic code, which names no field and so gets none: several columns are
- * unique and guessing the wrong one would mark a field that is fine.
  */
 const DUPLICATE_FIELDS: Record<string, string> = {
   EMAIL_EXISTS: "email",
   ROLE_CODE_EXISTS: "code",
 }
 
-/**
- * Maps an API failure onto this module's error vocabulary.
- *
- * The screens branch on `kind`, not on HTTP status, so the translation happens
- * once here. `VERSION_CONFLICT` carries the winning version in its details,
- * which is what lets a form tell the user their copy is stale rather than
- * simply that the save failed.
- */
 function toSettingsError(
   error: unknown,
   aliases?: Record<string, string>
@@ -161,14 +128,8 @@ function listParams(kind: EntityKind, query: ListQuery): Record<string, QueryVal
   if (query.search) params.search = query.search
   if (query.sort) params.sort = query.sort
   if (query.direction) params.sortOrder = query.direction
-  if (kind === "academic-terms" && query.academicYearId)
-    params.academicYearId = query.academicYearId
 
   if (kind === "users") {
-    // The employees route differs from the organization routes on two counts:
-    // it has no "ALL" status — an unfiltered read simply omits the parameter,
-    // and sending "ALL" is a validation error — and it sorts by its own
-    // vocabulary, rejecting the shared `name`/`code` values outright.
     if (query.status && query.status !== "all") params.status = query.status
     delete params.sort
     if (query.sort === "fullName") params.sort = "displayName"
@@ -184,28 +145,6 @@ function listParams(kind: EntityKind, query: ListQuery): Record<string, QueryVal
 const listEmployees = (params: Record<string, QueryValue>) =>
   httpClient.getPage<ApiEmployee>(PATHS.users, params)
 
-/**
- * Names for the branch and department an employee is assigned to.
- *
- * The employee payload carries ids only, so the two small master lists are
- * read alongside it. They are fetched per call rather than cached because a
- * rename must not keep showing the old label for the rest of the session.
- */
-async function employeeNameMaps() {
-  const [branches, departments] = await Promise.all([
-    httpClient
-      .getPage<ApiBranch>(PATHS.branches, { page: 1, pageSize: 100, status: "ALL" })
-      .catch(() => ({ items: [] as ApiBranch[] })),
-    httpClient
-      .getPage<ApiDepartment>(PATHS.departments, { page: 1, pageSize: 100, status: "ALL" })
-      .catch(() => ({ items: [] as ApiDepartment[] })),
-  ])
-  return {
-    branch: new Map(branches.items.map((item) => [item.id, item.name])),
-    department: new Map(departments.items.map((item) => [item.id, item.name])),
-  }
-}
-
 type AnyRecord = Record<string, unknown>
 
 /** Builds the create payload each entity's route expects. */
@@ -216,8 +155,6 @@ function createBody(kind: EntityKind, input: AnyRecord): AnyRecord {
         email: input.email,
         displayName: input.fullName,
         phone: input.phone,
-        ...(input.departmentId ? { departmentId: input.departmentId } : {}),
-        branchIds: input.branchId ? [input.branchId] : [],
         roleIds: input.roleIds ?? [],
         password: input.password,
         status: input.status ?? "active",
@@ -248,8 +185,6 @@ function updateBody(
         ...(input.email ? { email: input.email } : {}),
         ...(input.fullName ? { displayName: input.fullName } : {}),
         ...(input.phone ? { phone: input.phone } : {}),
-        ...(input.departmentId ? { departmentId: input.departmentId } : {}),
-        ...(input.branchId ? { branchIds: [input.branchId] } : {}),
         ...(input.roleIds ? { roleIds: input.roleIds } : {}),
       }
     case "roles":
@@ -258,38 +193,7 @@ function updateBody(
         ...(input.name ? { displayName: input.name } : {}),
         ...(input.description ? { description: input.description } : {}),
       }
-    case "branches":
-      return {
-        expectedVersion,
-        ...pick(input, ["name", "code", "address", "phone", "email", "managerId", "workingHours"]),
-      }
-    case "departments":
-      return { expectedVersion, ...pick(input, ["name", "code", "description"]) }
-    case "academic-years":
-      return {
-        expectedVersion,
-        ...pick(input, ["name", "code", "startDate", "endDate"]),
-      }
-    case "academic-terms":
-      return {
-        expectedVersion,
-        ...pick(input, ["academicYearId", "name", "startDate", "endDate", "order"]),
-      }
   }
-}
-
-function pick(source: AnyRecord, keys: string[]): AnyRecord {
-  return Object.fromEntries(
-    keys.filter((key) => source[key] !== undefined).map((key) => [key, source[key]])
-  )
-}
-
-/** The version of the year a term is being written into. */
-async function academicYearVersion(academicYearId: string): Promise<number> {
-  const year = await httpClient.get<ApiAcademicYear>(
-    `${PATHS["academic-years"]}/${academicYearId}`
-  )
-  return year.version
 }
 
 export const httpOrganizationSettingsService: OrganizationSettingsService = {
@@ -323,8 +227,6 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
           dateFormat: input.dateFormat,
           numberFormat: input.numberFormat,
           workingDays: input.workingDays,
-          defaultBranchId: input.defaultBranchId,
-          defaultAcademicYearId: input.defaultAcademicYearId,
         })
       )
     )
@@ -378,42 +280,14 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
     return guard(async () => {
       const params = listParams(kind, query)
       switch (kind) {
-        case "branches":
-          return toPaginated(
-            await httpClient.getPage<ApiBranch>(PATHS.branches, params),
-            toBranch
-          ) as PaginatedResult<EntityByKind[K]>
-        case "departments":
-          return toPaginated(
-            await httpClient.getPage<ApiDepartment>(PATHS.departments, params),
-            toDepartment
-          ) as PaginatedResult<EntityByKind[K]>
-        case "academic-years":
-          return toPaginated(
-            await httpClient.getPage<ApiAcademicYear>(PATHS["academic-years"], params),
-            toAcademicYear
-          ) as PaginatedResult<EntityByKind[K]>
-        case "academic-terms":
-          return toPaginated(
-            await httpClient.getPage<ApiAcademicTerm>(PATHS["academic-terms"], params),
-            toAcademicTerm
-          ) as PaginatedResult<EntityByKind[K]>
         case "roles":
           return toPaginated(
             await httpClient.getPage<ApiRole>(PATHS.roles, params),
             toRole
           ) as PaginatedResult<EntityByKind[K]>
         default: {
-          const [page, names] = await Promise.all([
-            listEmployees(params),
-            employeeNameMaps(),
-          ])
-          return toPaginated(page, (row) =>
-            toInternalUser(row, {
-              branch: names.branch.get(row.branchIds[0] ?? ""),
-              department: names.department.get(row.departmentId ?? ""),
-            })
-          ) as PaginatedResult<EntityByKind[K]>
+          const page = await listEmployees(params)
+          return toPaginated(page, toInternalUser) as PaginatedResult<EntityByKind[K]>
         }
       }
     }, kind)
@@ -423,31 +297,11 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
     return guard(async () => {
       const path = `${PATHS[kind]}/${id}`
       switch (kind) {
-        case "branches":
-          return toBranch(await httpClient.get<ApiBranch>(path)) as EntityByKind[K]
-        case "departments":
-          return toDepartment(
-            await httpClient.get<ApiDepartment>(path)
-          ) as EntityByKind[K]
-        case "academic-years":
-          return toAcademicYear(
-            await httpClient.get<ApiAcademicYear>(path)
-          ) as EntityByKind[K]
-        case "academic-terms":
-          return toAcademicTerm(
-            await httpClient.get<ApiAcademicTerm>(path)
-          ) as EntityByKind[K]
         case "roles":
           return toRole(await httpClient.get<ApiRole>(path)) as EntityByKind[K]
         default: {
-          const [employee, names] = await Promise.all([
-            httpClient.get<ApiEmployee>(path),
-            employeeNameMaps(),
-          ])
-          return toInternalUser(employee, {
-            branch: names.branch.get(employee.branchIds[0] ?? ""),
-            department: names.department.get(employee.departmentId ?? ""),
-          }) as EntityByKind[K]
+          const employee = await httpClient.get<ApiEmployee>(path)
+          return toInternalUser(employee) as EntityByKind[K]
         }
       }
     }, kind)
@@ -464,39 +318,13 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
       const source = input as AnyRecord
       const body = createBody(kind, source)
       switch (kind) {
-        case "branches":
-          return toBranch(
-            await httpClient.post<ApiBranch>(PATHS.branches, body)
-          ) as EntityByKind[K]
-        case "departments":
-          return toDepartment(
-            await httpClient.post<ApiDepartment>(PATHS.departments, body)
-          ) as EntityByKind[K]
-        case "academic-years":
-          return toAcademicYear(
-            await httpClient.post<ApiAcademicYear>(PATHS["academic-years"], body)
-          ) as EntityByKind[K]
-        case "academic-terms": {
-          // A term is created against a specific revision of its year, so the
-          // year's current version travels with the request.
-          const academicYearId = String(source.academicYearId ?? "")
-          return toAcademicTerm(
-            await httpClient.post<ApiAcademicTerm>(PATHS["academic-terms"], {
-              ...body,
-              expectedAcademicYearVersion: await academicYearVersion(academicYearId),
-            })
-          ) as EntityByKind[K]
-        }
         case "roles":
           return toRole(
             await httpClient.post<ApiRole>(PATHS.roles, body)
           ) as EntityByKind[K]
         default: {
           const employee = await httpClient.post<ApiEmployee>(PATHS.users, body)
-          return toInternalUser(employee, {
-            branch: source.branchName as string | undefined,
-            department: source.departmentName as string | undefined,
-          }) as EntityByKind[K]
+          return toInternalUser(employee) as EntityByKind[K]
         }
       }
     }, kind)
@@ -512,38 +340,11 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
       const path = `${PATHS[kind]}/${id}`
       const body = updateBody(kind, source, input.expectedVersion)
       switch (kind) {
-        case "branches":
-          return toBranch(
-            await httpClient.patch<ApiBranch>(path, body)
-          ) as EntityByKind[K]
-        case "departments":
-          return toDepartment(
-            await httpClient.patch<ApiDepartment>(path, body)
-          ) as EntityByKind[K]
-        case "academic-years":
-          return toAcademicYear(
-            await httpClient.patch<ApiAcademicYear>(path, body)
-          ) as EntityByKind[K]
-        case "academic-terms": {
-          const academicYearId = String(
-            source.academicYearId ??
-              (await httpClient.get<ApiAcademicTerm>(path)).academicYearId
-          )
-          return toAcademicTerm(
-            await httpClient.patch<ApiAcademicTerm>(path, {
-              ...body,
-              expectedAcademicYearVersion: await academicYearVersion(academicYearId),
-            })
-          ) as EntityByKind[K]
-        }
         case "roles":
           return toRole(await httpClient.patch<ApiRole>(path, body)) as EntityByKind[K]
         default: {
           const employee = await httpClient.patch<ApiEmployee>(path, body)
-          return toInternalUser(employee, {
-            branch: source.branchName as string | undefined,
-            department: source.departmentName as string | undefined,
-          }) as EntityByKind[K]
+          return toInternalUser(employee) as EntityByKind[K]
         }
       }
     }, kind)
@@ -559,22 +360,6 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
       const path = `${PATHS[kind]}/${id}/status`
       const body = { status, expectedVersion }
       switch (kind) {
-        case "branches":
-          return toBranch(
-            await httpClient.patch<ApiBranch>(path, body)
-          ) as EntityByKind[K]
-        case "departments":
-          return toDepartment(
-            await httpClient.patch<ApiDepartment>(path, body)
-          ) as EntityByKind[K]
-        case "academic-years":
-          return toAcademicYear(
-            await httpClient.patch<ApiAcademicYear>(path, body)
-          ) as EntityByKind[K]
-        case "academic-terms":
-          return toAcademicTerm(
-            await httpClient.patch<ApiAcademicTerm>(path, body)
-          ) as EntityByKind[K]
         case "roles":
           return toRole(await httpClient.patch<ApiRole>(path, body)) as EntityByKind[K]
         default:
@@ -583,17 +368,6 @@ export const httpOrganizationSettingsService: OrganizationSettingsService = {
           ) as EntityByKind[K]
       }
     }, kind)
-  },
-
-  async activateAcademicYear(id: string, expectedVersion: number): Promise<AcademicYear> {
-    return guard(async () =>
-      toAcademicYear(
-        await httpClient.post<ApiAcademicYear>(
-          `${PATHS["academic-years"]}/${id}/activate`,
-          { expectedVersion }
-        )
-      )
-    )
   },
 
   async getPermissionCatalog(): Promise<PermissionGroup[]> {

@@ -6,21 +6,14 @@ import {
 // The granted set is the fixture the runtime guard reads.
 // eslint-disable-next-line no-restricted-imports
 import { mockRole } from "@/features/auth/data/auth-fixtures"
-import { accountingPermissions } from "@/features/accounting/config/accounting-permissions"
-import { financePermissions } from "@/features/student-finance/config/finance-permissions"
-import { studentsPermissions } from "@/features/students/config/students-permissions"
-import { admissionPermissions } from "@/features/admissions/config/admissions-permissions"
 import { inboxPermissions } from "@/features/inbox/config/inbox-permissions"
+import { contactsPermissions } from "@/features/contacts/config/contacts-permissions"
+import { pipelinePermissions } from "@/features/lead-pipeline/config/pipeline-permissions"
+import { campaignsPermissions } from "@/features/campaigns/config/campaigns-permissions"
 
 /**
  * The catalogue behind مصفوفة الصلاحيات must offer exactly the keys the
  * application enforces.
- *
- * It previously offered 48 generated `module.action` ids of which three matched a
- * real key, leaving every Catalog, Batches, Admissions, Students, Finance and
- * Accounting permission ungrantable. These assert the two sets agree, so a module
- * that adds a permission cannot forget to publish it — and the matrix can never
- * again offer a key nothing checks.
  */
 describe("the permission catalogue", () => {
   const granted = new Set(mockRole.permissionKeys as string[])
@@ -40,13 +33,10 @@ describe("the permission catalogue", () => {
     expect(permissionCatalog.map((group) => group.key)).toEqual([
       "dashboard",
       "inbox",
+      "contacts",
+      "campaigns",
+      "pipeline",
       "settings",
-      "catalog",
-      "batches",
-      "admissions",
-      "students",
-      "finance",
-      "accounting",
       "tickets",
     ])
   })
@@ -58,32 +48,16 @@ describe("the permission catalogue", () => {
         .permissions.map((permission) => permission.key)
         .sort()
 
-    expect(keysOf("accounting")).toEqual(
-      Object.values(accountingPermissions).sort()
-    )
-    expect(keysOf("finance")).toEqual(Object.values(financePermissions).sort())
-    expect(keysOf("students")).toEqual(Object.values(studentsPermissions).sort())
-    expect(keysOf("admissions")).toEqual([...admissionPermissions].sort())
     expect(keysOf("inbox")).toEqual(Object.values(inboxPermissions).sort())
-  })
-
-  it("carries the separation-of-duty keys the matrix must be able to split", () => {
-    // Collapsing any of these would remove a financial control that exists
-    // precisely because the keys are distinct.
-    for (const key of [
-      "finance.payments.record",
-      "finance.refunds.approve",
-      "finance.discounts.approve",
-      "finance.scholarships.approve",
-      "accounting.requests.decide",
-      "accounting.requests.markPaid",
-      "students.status.manage",
-      "students.status.correct",
-      "admissions.documents.manage",
-      "admissions.documents.verify",
-      "batches.registration.correct",
-    ])
-      expect(offered.has(key), key).toBe(true)
+    expect(keysOf("contacts")).toEqual(
+      Object.values(contactsPermissions).sort()
+    )
+    expect(keysOf("pipeline")).toEqual(
+      Object.values(pipelinePermissions).sort()
+    )
+    expect(keysOf("campaigns")).toEqual(
+      Object.values(campaignsPermissions).sort()
+    )
   })
 
   it("gives every permission a unique id and a description", () => {

@@ -6,7 +6,7 @@ test("organization profile is readable but not editable, and defaults are reacha
   await signIn(page)
   await page.goto("/settings/organization")
   await expect(page.getByRole("heading", { name: "ملف المؤسسة" })).toBeVisible()
-  await expect(page.getByText("أكاديمية السلام المهنية")).toBeVisible()
+  await expect(page.getByText("أكاديمية السلام المهني")).toBeVisible()
   // Code-owned configuration: the page shows it, nothing edits it.
   await expect(page.getByRole("textbox")).toHaveCount(0)
   await page.goto("/settings/general")

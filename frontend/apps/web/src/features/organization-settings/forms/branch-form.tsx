@@ -1,7 +1,0 @@
-"use client"
-import { SelectField } from "@/shared/components/forms/select-field"
-import { TextField } from "@/shared/components/forms/text-field"
-import { branchSchema, type BranchInput } from "../schemas/branch-schema"
-import type { Branch } from "../types/domain"
-import { SchemaForm } from "./schema-form"
-export function BranchForm({ record, pending, error, onSubmit }: { record?: Branch; pending: boolean; error?: unknown; onSubmit: (values: BranchInput) => void }) { const values: BranchInput = record ? { name: record.name, code: record.code, email: record.email, address: record.address, phone: record.phone, workingHours: record.workingHours, status: record.status === "inactive" ? "archived" : record.status } : { name: "", code: "", email: "", address: "", phone: "", workingHours: "الأحد–الخميس، 09:00–17:00", status: "active" }; return <SchemaForm schema={branchSchema} values={values} pending={pending} error={error} onSubmit={onSubmit} submitLabel={record ? "حفظ الفرع" : "إنشاء الفرع"}><TextField name="name" label="اسم الفرع" /><TextField name="code" label="رمز الفرع" dir="ltr" /><TextField name="email" label="البريد الإلكتروني" dir="ltr" /><TextField name="phone" label="رقم الهاتف" dir="ltr" /><TextField name="address" label="العنوان" /><TextField name="workingHours" label="ساعات العمل" /><SelectField name="status" label="الحالة" options={[{ value: "active", label: "نشط" }, { value: "archived", label: "مؤرشف" }]} /></SchemaForm> }

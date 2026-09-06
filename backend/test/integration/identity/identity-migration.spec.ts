@@ -25,7 +25,7 @@ describe('identity migration compatibility', () => {
   });
 
   it('has a unique canonical permission catalogue', () => {
-    expect(PERMISSION_CATALOG).toHaveLength(128);
-    expect(new Set(PERMISSION_CATALOG.map(({ key }) => key)).size).toBe(128);
+    expect(PERMISSION_CATALOG).toHaveLength(175);
+    expect(new Set(PERMISSION_CATALOG.map(({ key }) => key)).size).toBe(175);
   });
 });

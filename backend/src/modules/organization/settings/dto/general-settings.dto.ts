@@ -19,8 +19,6 @@ export class UpdateGeneralSettingsDto extends ExpectedVersionDto {
   @ArrayUnique()
   @IsIn(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], { each: true })
   workingDays!: string[];
-  @IsUUID() defaultBranchId!: string;
-  @IsUUID() defaultAcademicYearId!: string;
 }
 export class GeneralSettingsResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
@@ -30,7 +28,5 @@ export class GeneralSettingsResponseDto {
   dateFormat!: string;
   numberFormat!: string;
   workingDays!: string[];
-  defaultBranchId!: string;
-  defaultAcademicYearId!: string;
   version!: number;
 }

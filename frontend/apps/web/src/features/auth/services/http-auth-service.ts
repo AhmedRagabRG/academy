@@ -1,8 +1,6 @@
 import type { AuthService, LoginCredentials } from "../types/auth"
 import { ApiError, httpClient, refreshCsrfToken } from "@/shared/api"
 import type {
-  Branch,
-  BranchId,
   Employee,
   EmployeeContext,
   EmployeeId,
@@ -20,7 +18,6 @@ interface SessionPayload {
     email: string
     avatar: string | null
     roleIds: string[]
-    branchIds: string[]
   }
   roles: Array<{
     id: string
@@ -29,7 +26,6 @@ interface SessionPayload {
     status: string
   }>
   permissionKeys: string[]
-  authorizedBranchIds: string[]
   organizationWide: boolean
   authenticatedAt: string
 }
@@ -40,7 +36,6 @@ const toEmployee = (payload: SessionPayload): Employee => ({
   email: payload.employee.email,
   avatarUrl: payload.employee.avatar ?? undefined,
   roleIds: payload.employee.roleIds as RoleId[],
-  branchIds: payload.employee.branchIds as BranchId[],
 })
 
 /**
@@ -63,29 +58,9 @@ function toRole(payload: SessionPayload): Role {
   }
 }
 
-/**
- * The employee's working branch.
- *
- * The session carries branch ids but no branch records, and resolving names
- * would mean a settings read that an employee without `settings.branches.view`
- * is not allowed to make. The shell only needs an identifier and a label, so
- * the id stands in until a branch-scoped read supplies more.
- */
-function toBranch(payload: SessionPayload): Branch {
-  const branchId = payload.authorizedBranchIds[0] ?? payload.employee.branchIds[0]
-  return {
-    id: (branchId ?? "branch-unassigned") as BranchId,
-    code: branchId ?? "unassigned",
-    displayName: payload.organizationWide ? "كل الفروع" : "الفرع المسند",
-    status: "active",
-  }
-}
-
 const toContext = (payload: SessionPayload): EmployeeContext => ({
   employee: toEmployee(payload),
   role: toRole(payload),
-  branch: toBranch(payload),
-  authorizedBranchIds: payload.authorizedBranchIds as BranchId[],
   organizationWide: payload.organizationWide,
   authenticatedAt: payload.authenticatedAt,
 })

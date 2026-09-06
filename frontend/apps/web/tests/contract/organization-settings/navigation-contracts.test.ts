@@ -17,7 +17,7 @@ const APP_DIR = join(process.cwd(), "src/app/(workspace)")
  */
 describe("settings navigation contract", () => {
   it("lists the core administrative destinations", () =>
-    expect(children.length).toBeGreaterThanOrEqual(5))
+    expect(children.length).toBeGreaterThanOrEqual(4))
 
   it("scopes every destination under /settings", () => {
     for (const item of children) expect(item.route).toMatch(/^\/settings\//)

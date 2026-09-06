@@ -19,8 +19,6 @@ export const ticketConfiguration: TicketConfiguration = {
     { id: "high", name: "عالية", tone: "bg-amber-100 text-amber-800", order: 3 },
     { id: "critical", name: "حرجة", tone: "bg-red-100 text-red-800", order: 4 },
   ],
-  departments: [{ id: "support", name: "خدمة العملاء" }, { id: "admissions", name: "القبول" }, { id: "finance", name: "المالية" }, { id: "operations", name: "العمليات" }],
-  branches: [{ id: "branch-main", name: "الفرع الرئيسي" }, { id: "branch-nasr", name: "فرع مدينة نصر" }, { id: "branch-giza", name: "فرع الجيزة" }],
   teams: [{ id: "team-support" as TeamId, name: "فريق الدعم" }, { id: "team-admissions" as TeamId, name: "فريق القبول" }, { id: "team-finance" as TeamId, name: "فريق المالية" }],
   employees: [
     { id: "employee-demo", name: "أحمد محمد", teamIds: ["team-support" as TeamId] },

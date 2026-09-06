@@ -41,7 +41,7 @@ function nameOf(kind: keyof typeof ticketConfiguration, id?: string) {
   return found?.name
 }
 function toSummary(ticket: Ticket, actor: TicketActor, comments: { ticketId: TicketId }[]): TicketSummary {
-  return { ...clone(ticket), departmentName: nameOf("departments", ticket.departmentId) ?? "—", branchName: nameOf("branches", ticket.branchId), teamName: nameOf("teams", ticket.teamId), employeeName: nameOf("employees", ticket.employeeId), customerName: nameOf("customers", ticket.customerId), studentName: nameOf("students", ticket.studentId), commentCount: comments.filter((item) => item.ticketId === ticket.id).length, capabilities: capabilities(actor) }
+  return { ...clone(ticket), teamName: nameOf("teams", ticket.teamId), employeeName: nameOf("employees", ticket.employeeId), customerName: nameOf("customers", ticket.customerId), studentName: nameOf("students", ticket.studentId), commentCount: comments.filter((item) => item.ticketId === ticket.id).length, capabilities: capabilities(actor) }
 }
 function toDetail(ticket: Ticket, actor: TicketActor, state: ReturnType<typeof ticketRepository.read>): TicketDetail {
   return { ...toSummary(ticket, actor, state.comments), conversationName: nameOf("conversations", ticket.conversationId), comments: state.comments.filter((item) => item.ticketId === ticket.id).sort((a,b) => a.createdAt.localeCompare(b.createdAt)), activity: state.activity.filter((item) => item.ticketId === ticket.id).sort((a,b) => a.occurredAt.localeCompare(b.occurredAt)), attachments: state.attachments.filter((item) => item.ticketId === ticket.id) }

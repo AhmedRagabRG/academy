@@ -1,4 +1,3 @@
-import { BranchScopeService } from '../../src/core/authorization/branch-scope.service';
 import {
   ForbiddenException,
   OutOfScopeException,
@@ -14,22 +13,9 @@ describe('authorization outcomes', () => {
       status: 403,
       code: 'FORBIDDEN',
     });
-    expect(() =>
-      new BranchScopeService().assertInScope(
-        {
-          accountId: 'a',
-          sessionId: 's',
-          displayName: '',
-          email: '',
-          roles: [{ id: 'r', code: 'r', displayName: 'R' }],
-          permissionKeys: [],
-          role: { id: 'r', code: 'r', permissionKeys: [] },
-          authorizedBranchIds: [],
-          organizationWide: false,
-          authenticatedAt: '',
-        },
-        'branch',
-      ),
-    ).toThrow(OutOfScopeException);
+    expect(new OutOfScopeException()).toMatchObject({
+      status: 403,
+      code: 'OUT_OF_SCOPE',
+    });
   });
 });

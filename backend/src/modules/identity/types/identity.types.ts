@@ -12,8 +12,6 @@ export interface PublicEmployee {
   displayName: string;
   phone: string;
   position: string | null;
-  departmentId: string | null;
-  branchIds: string[];
   organizationWide: boolean;
   avatar: unknown;
   status: string;

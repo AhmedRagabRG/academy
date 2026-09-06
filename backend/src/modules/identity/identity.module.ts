@@ -8,7 +8,6 @@ import { EmployeePolicy } from './employees/employee.policy';
 import { EmployeeRepository } from './employees/employee.repository';
 import { EmployeeService } from './employees/employee.service';
 import { OrganizationReferenceService } from './employees/organization-reference.service';
-import { CatalogIdentityReferenceService } from './employees/catalog-reference.service';
 import { EmployeeReferenceService } from './employees/employee-reference.service';
 import { IAM_EMPLOYEE_REFERENCE_PORT } from './types/employee-reference.port';
 import { ProfileController } from './profile/profile.controller';
@@ -42,7 +41,6 @@ import { SessionsController } from './sessions/sessions.controller';
     EmployeePolicy,
     EmployeeService,
     OrganizationReferenceService,
-    CatalogIdentityReferenceService,
     EmployeeReferenceService,
     {
       provide: IAM_EMPLOYEE_REFERENCE_PORT,
@@ -60,7 +58,6 @@ import { SessionsController } from './sessions/sessions.controller';
     PermissionRepository,
     SessionRepository,
     OrganizationReferenceService,
-    CatalogIdentityReferenceService,
     IAM_EMPLOYEE_REFERENCE_PORT,
   ],
 })

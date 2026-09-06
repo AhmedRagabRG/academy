@@ -1,0 +1,207 @@
+import type {
+  AudienceGroup,
+  Campaign,
+  CampaignRecipient,
+  WhatsappTemplate,
+} from "../types/domain"
+
+const hoursAgo = (hours: number) =>
+  new Date(Date.now() - hours * 3_600_000).toISOString()
+
+export const seededTemplates: WhatsappTemplate[] = [
+  {
+    id: "template-open-day",
+    name: "open_day_invite",
+    language: "ar",
+    category: "MARKETING",
+    status: "approved",
+    headerKind: "TEXT",
+    headerText: "دعوة {{1}}",
+    bodyText:
+      "مرحبًا {{1}}، يسعدنا دعوتك إلى اليوم المفتوح في أكاديمية السلام يوم {{2}}. للتسجيل تواصل معنا.",
+    footerText: "أكاديمية السلام",
+    variableTokens: ["1", "2"],
+    headerVariableTokens: ["1"],
+    named: false,
+    qualityScore: "GREEN",
+    syncedAt: hoursAgo(3),
+  },
+  {
+    id: "template-installment",
+    name: "installment_reminder",
+    language: "ar",
+    category: "UTILITY",
+    status: "approved",
+    bodyText:
+      "عزيزي {{1}}، نذكرك بقسط {{2}} المستحق بتاريخ {{3}}. شكرًا لالتزامك.",
+    footerText: "إدارة شؤون الطلاب",
+    variableTokens: ["1", "2", "3"],
+    headerVariableTokens: [],
+    named: false,
+    qualityScore: "GREEN",
+    syncedAt: hoursAgo(3),
+  },
+  {
+    id: "template-summer",
+    name: "summer_courses",
+    language: "ar",
+    category: "MARKETING",
+    status: "pending",
+    bodyText: "برامج الصيف بدأت! سجل الآن واحصل على خصم {{1}}.",
+    variableTokens: ["1"],
+    headerVariableTokens: [],
+    named: false,
+    syncedAt: hoursAgo(3),
+  },
+]
+
+export const seededAudienceGroups: AudienceGroup[] = [
+  {
+    id: "group-leads-2026",
+    name: "مهتمون 2026",
+    description: "أرقام وردت من حملات التواصل الاجتماعي",
+    memberCount: 428,
+  },
+  {
+    id: "group-parents",
+    name: "أولياء الأمور",
+    description: "أولياء أمور الطلاب المسجلين",
+    memberCount: 1260,
+  },
+  {
+    id: "group-alumni",
+    name: "الخريجون",
+    description: "خريجو الدفعات السابقة",
+    memberCount: 315,
+  },
+]
+
+const stats = (values: Partial<Campaign["stats"]>): Campaign["stats"] => ({
+  total: 0,
+  pending: 0,
+  sending: 0,
+  sent: 0,
+  delivered: 0,
+  read: 0,
+  failed: 0,
+  skipped: 0,
+  ...values,
+})
+
+export const seededCampaigns: Campaign[] = [
+  {
+    id: "campaign-open-day",
+    name: "اليوم المفتوح — مارس",
+    description: "دعوة المهتمين لحضور اليوم المفتوح",
+    status: "running",
+    template: seededTemplates[0]!,
+    groupIds: ["group-leads-2026"],
+    variables: [
+      { position: 1, source: "contact", value: "name", fallback: "صديقنا" },
+      { position: 2, source: "literal", value: "٢٠ مارس", fallback: "" },
+    ],
+    headerVariables: [
+      { position: 1, source: "literal", value: "خاصة", fallback: "" },
+    ],
+    throttlePerMinute: 120,
+    startedAt: hoursAgo(1),
+    stats: stats({
+      total: 428,
+      pending: 96,
+      sending: 4,
+      sent: 118,
+      delivered: 164,
+      read: 44,
+      failed: 2,
+    }),
+    createdByName: "أحمد محمد",
+    version: 3,
+    createdAt: hoursAgo(6),
+    updatedAt: hoursAgo(1),
+  },
+  {
+    id: "campaign-installments",
+    name: "تذكير أقساط فبراير",
+    description: "",
+    status: "completed",
+    template: seededTemplates[1]!,
+    groupIds: ["group-parents"],
+    variables: [
+      { position: 1, source: "contact", value: "name", fallback: "ولي الأمر" },
+      { position: 2, source: "literal", value: "فبراير", fallback: "" },
+      { position: 3, source: "literal", value: "١٠/٢", fallback: "" },
+    ],
+    headerVariables: [],
+    throttlePerMinute: 300,
+    startedAt: hoursAgo(72),
+    completedAt: hoursAgo(70),
+    stats: stats({
+      total: 1260,
+      sent: 42,
+      delivered: 1102,
+      read: 108,
+      failed: 8,
+    }),
+    createdByName: "سارة عبد الله",
+    version: 6,
+    createdAt: hoursAgo(96),
+    updatedAt: hoursAgo(70),
+  },
+  {
+    id: "campaign-summer-draft",
+    name: "برامج الصيف — مسودة",
+    description: "بانتظار اعتماد القالب من Meta",
+    status: "draft",
+    template: seededTemplates[2]!,
+    groupIds: [],
+    variables: [{ position: 1, source: "literal", value: "٢٠٪", fallback: "" }],
+    headerVariables: [],
+    throttlePerMinute: 120,
+    stats: stats({}),
+    createdByName: "أحمد محمد",
+    version: 1,
+    createdAt: hoursAgo(20),
+    updatedAt: hoursAgo(20),
+  },
+]
+
+export const seededRecipients: CampaignRecipient[] = [
+  {
+    id: "recipient-1",
+    contactId: "contact-hoda",
+    name: "هدى مصطفى",
+    phone: "+201000000011",
+    status: "read",
+    attempts: 1,
+    sentAt: hoursAgo(1),
+    deliveredAt: hoursAgo(1),
+    readAt: hoursAgo(1),
+  },
+  {
+    id: "recipient-2",
+    contactId: "contact-karim",
+    name: "كريم فؤاد",
+    phone: "+201000000012",
+    status: "delivered",
+    attempts: 1,
+    sentAt: hoursAgo(1),
+    deliveredAt: hoursAgo(1),
+  },
+  {
+    id: "recipient-3",
+    name: "منى سعيد",
+    phone: "+201000000013",
+    status: "failed",
+    attempts: 3,
+    errorCode: "131026",
+    errorMessage: "الرقم غير مسجل على واتساب",
+    failedAt: hoursAgo(1),
+  },
+  {
+    id: "recipient-4",
+    name: "طارق أحمد",
+    phone: "+201000000014",
+    status: "pending",
+    attempts: 0,
+  },
+]

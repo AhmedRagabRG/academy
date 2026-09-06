@@ -184,7 +184,7 @@ export function DataTable<T>({
                           ? "descending"
                           : "none"
                     }
-                    className="px-4 py-3 text-start font-semibold whitespace-nowrap"
+                    className="px-4 py-3 text-start font-medium whitespace-nowrap"
                   >
                     <button
                       type="button"

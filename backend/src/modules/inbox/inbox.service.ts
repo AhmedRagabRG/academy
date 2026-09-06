@@ -13,6 +13,7 @@ import {
   INBOX_DELIVERY_PORT,
   type InboxDeliveryPort,
 } from './delivery/inbox-delivery.port';
+import { InboxCrmLinkService } from './crm/inbox-crm-link.service';
 import { InboxPolicy } from './inbox.policy';
 import { InboxRepository } from './inbox.repository';
 
@@ -27,7 +28,7 @@ const labels: Record<string, string> = {
   archived: 'مؤرشفة',
 };
 const aggregateInclude = {
-  customer: { include: { branch: true } },
+  customer: true,
   platform: true,
   assignedEmployee: true,
   assignedTeam: true,
@@ -52,6 +53,7 @@ export class InboxService {
     private readonly policy: InboxPolicy,
     @Inject(INBOX_DELIVERY_PORT) private readonly delivery: InboxDeliveryPort,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+    private readonly crm: InboxCrmLinkService,
   ) {}
   private event(
     c: CallerContext,
@@ -89,7 +91,6 @@ export class InboxService {
         name: row.customer.name,
         phone: row.customer.phone,
         avatarUrl: row.customer.avatarUrl ?? undefined,
-        branchId: row.customer.branchId,
         firstContactAt: row.customer.firstContactAt.toISOString(),
         lastActivityAt: row.customer.lastActivityAt.toISOString(),
       },
@@ -120,11 +121,6 @@ export class InboxService {
         color: tag.color,
         active: tag.active,
       })),
-      branch: {
-        id: row.customer.branch.id,
-        label: row.customer.branch.name,
-        active: row.customer.branch.status === 'ACTIVE',
-      },
       messages: row.messages.map((m) => ({
         id: m.id,
         conversationId: m.conversationId,
@@ -216,9 +212,6 @@ export class InboxService {
           ? { assignedEmployeeId: { in: q.employeeIds } }
           : {},
         q.teamIds.length ? { assignedTeamId: { in: q.teamIds } } : {},
-        q.branchIds.length
-          ? { customer: { branchId: { in: q.branchIds } } }
-          : {},
         q.tagIds.length ? { tags: { some: { tagId: { in: q.tagIds } } } } : {},
         search
           ? {
@@ -293,7 +286,11 @@ export class InboxService {
     };
   }
   async detail(c: CallerContext, id: string) {
-    return this.project(await this.full(c, id));
+    const row = await this.full(c, id);
+    return {
+      ...this.project(row),
+      crm: await this.crm.summary(row.customerId),
+    };
   }
   async markRead(c: CallerContext, id: string) {
     const current = await this.full(c, id);
@@ -301,6 +298,7 @@ export class InboxService {
       .reverse()
       .find((message) => message.direction === 'INCOMING');
     await this.delivery.markRead({
+      organizationId: current.organizationId,
       platformCode: current.platform.code,
       recipientId: current.providerThreadId ?? current.customer.normalizedPhone,
       providerMessageId: incoming?.providerMessageId ?? undefined,
@@ -344,28 +342,12 @@ export class InboxService {
   async lookups(c: CallerContext) {
     this.policy.assertAnyView(c);
     const org = await this.repo.organizationId();
-    const branchWhere = c.organizationWide
-      ? {}
-      : { id: { in: c.authorizedBranchIds } };
-    const organizationBranches = await this.repo.db.branch.findMany({
-      where: { organizationId: org },
-      select: { id: true },
-    });
-    const organizationBranchIds = organizationBranches.map((x) => x.id);
-    const employeeBranchIds = c.organizationWide
-      ? organizationBranchIds
-      : c.authorizedBranchIds.filter((id) =>
-          organizationBranchIds.includes(id),
-        );
-    const [platforms, tags, branches, teams, employees] = await Promise.all([
+    const [platforms, tags, teams, employees] = await Promise.all([
       this.repo.db.inboxPlatform.findMany({
         where: { organizationId: org, active: true },
       }),
       this.repo.db.inboxTag.findMany({
         where: { organizationId: org, active: true },
-      }),
-      this.repo.db.branch.findMany({
-        where: { organizationId: org, status: 'ACTIVE', ...branchWhere },
       }),
       this.repo.db.ticketTeam.findMany({
         where: { organizationId: org, active: true },
@@ -373,7 +355,6 @@ export class InboxService {
       this.repo.db.account.findMany({
         where: {
           status: 'ACTIVE',
-          branchIds: { hasSome: employeeBranchIds },
         },
       }),
     ]);
@@ -388,7 +369,6 @@ export class InboxService {
       platforms: platforms.map((x) => ({ id: x.id, label: x.label })),
       statuses: Object.entries(labels).map(([id, label]) => ({ id, label })),
       tags: tags.map((x) => ({ id: x.id, label: x.label, color: x.color })),
-      branches: branches.map((x) => ({ id: x.id, label: x.name })),
       teams: teams.map((x) => ({ id: x.id, label: x.name })),
       employees: employees.map((x) => ({
         id: x.id,
@@ -441,9 +421,9 @@ export class InboxService {
       throw new DomainException('validation', 'اكتب رسالة أو أضف مرفقًا', 422);
     const current = await this.full(c, id);
     this.assertMutable(current);
-    const isMetaChannel =
-      current.platform.code === 'whatsapp' ||
-      current.platform.code === 'messenger';
+    const isMetaChannel = ['whatsapp', 'messenger', 'instagram'].includes(
+      current.platform.code,
+    );
     if (isMetaChannel && dto.attachments.length)
       throw new DomainException(
         'provider-attachment-not-supported',
@@ -562,6 +542,7 @@ export class InboxService {
     });
     try {
       const result = await this.delivery.enqueue({
+        organizationId: current.organizationId,
         conversationId: id,
         messageId: message.id,
         platformCode: current.platform.code,
@@ -598,23 +579,11 @@ export class InboxService {
     )
       return this.project(row);
     const org = row.organizationId;
-    const orgBranchIds = (
-      await this.repo.db.branch.findMany({
-        where: { organizationId: org },
-        select: { id: true },
-      })
-    ).map((x) => x.id);
-    const allowedEmployeeBranchIds = c.organizationWide
-      ? orgBranchIds
-      : c.authorizedBranchIds.filter((branchId) =>
-          orgBranchIds.includes(branchId),
-        );
     const employee = dto.employeeId
       ? await this.repo.db.account.findFirst({
           where: {
             id: dto.employeeId,
             status: 'ACTIVE',
-            branchIds: { hasSome: allowedEmployeeBranchIds },
           },
         })
       : null;

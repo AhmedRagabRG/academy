@@ -32,10 +32,7 @@ export class InboxPolicy {
       : this.has(c, 'inbox.view.team')
         ? { assignedTeamId: { in: teamIds } }
         : { assignedEmployeeId: c.accountId };
-    const branch: Prisma.InboxConversationWhereInput = c.organizationWide
-      ? {}
-      : { customer: { branchId: { in: c.authorizedBranchIds } } };
-    return { AND: [visibility, branch] };
+    return visibility;
   }
   assertVisible(value: unknown): asserts value {
     if (!value) throw new NotFoundException();

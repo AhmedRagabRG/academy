@@ -20,6 +20,7 @@ import { InboxSearch } from "../components/inbox-search"
 import { InboxToolbar } from "../components/inbox-toolbar"
 import { ConversationList } from "../components/conversation-list"
 import { CustomerProfile } from "../components/customer-profile"
+import { ConversationCrmPanel } from "../components/conversation-crm-panel"
 import { ConversationTags } from "../components/conversation-tags"
 import { ConversationWorkspace } from "./conversation-workspace"
 import { useInboxRealtime } from "../hooks/use-inbox-realtime"
@@ -117,6 +118,7 @@ export function InboxScreen() {
         العودة إلى المحادثة
       </button>
       <CustomerProfile conversation={detail.data} />
+      <ConversationCrmPanel conversation={detail.data} />
       <ConversationTags
         conversation={detail.data}
         lookups={lookups.data}

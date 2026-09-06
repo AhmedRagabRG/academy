@@ -12,7 +12,7 @@ export function ConversationHeader({
     <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
       <div className="flex min-w-0 items-center">
         <div className="min-w-0">
-          <h2 id="conversation-title" className="truncate font-semibold">
+          <h2 id="conversation-title" className="truncate font-medium">
             {conversation.customer.name}
           </h2>
           <div className="mt-1 flex flex-wrap gap-1">

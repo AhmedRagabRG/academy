@@ -10,13 +10,11 @@ describe("application shell contract", () => {
     expect(foundationNavigation.map((item) => item.id)).toEqual([
       "dashboard",
       "inbox",
+      "contacts",
+      "campaigns",
+      "pipeline",
       "tickets",
       "settings",
-      "academic-catalog",
-      "admissions",
-      "students",
-      "student-finance",
-      "accounting",
     ])
   })
 
@@ -26,8 +24,16 @@ describe("application shell contract", () => {
     // added and removed, and the grouping is what this asserts.
     expect(settings?.children?.length).toBeGreaterThan(0)
     expect(
-      settings?.children?.every((child) => child.route?.startsWith("/settings/"))
+      settings?.children?.every((child) =>
+        child.route?.startsWith("/settings/")
+      )
     ).toBe(true)
+  })
+
+  it("links the sales pipeline to its canonical route", () => {
+    expect(
+      foundationNavigation.find((item) => item.id === "pipeline")?.route
+    ).toBe("/lead-pipeline")
   })
 
   it("registers no component showcase", () => {

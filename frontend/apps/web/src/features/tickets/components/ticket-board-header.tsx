@@ -125,24 +125,6 @@ export function TicketBoardHeader({
             </option>
           ))}
         </select>
-        <select
-          aria-label="تصفية حسب القسم"
-          className={input}
-          value={filters.departmentIds?.[0] ?? ""}
-          onChange={(e) =>
-            onFilters({
-              ...filters,
-              departmentIds: e.target.value ? [e.target.value] : undefined,
-            })
-          }
-        >
-          <option value="">كل الأقسام</option>
-          {configuration.departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
         {Object.keys(filters).length > 0 && (
           <Button variant="ghost" onClick={() => onFilters({})}>
             مسح التصفية

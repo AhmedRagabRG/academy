@@ -26,7 +26,6 @@ export interface IdentityEventPayloads {
   [IdentityEventName.PasswordReset]: { sessionsRevoked: number };
   [IdentityEventName.EmployeeCreated]: {
     roleIds: string[];
-    branchIds: string[];
   };
   [IdentityEventName.EmployeeUpdated]: { changedFields: string[] };
   [IdentityEventName.EmployeeStatusChanged]: {

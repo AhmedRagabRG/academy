@@ -5,22 +5,22 @@ const now = Date.now()
 const hoursAgo = (hours: number) => new Date(now - hours * 3_600_000).toISOString()
 
 const definitions = [
-  ["TKT-1048", "تحديث بيانات ولي الأمر", "backlog", "medium", "support", "team-support", "employee-demo", "customer-1", "student-1", ["متابعة"]],
-  ["TKT-1047", "تعذر إتمام تسجيل الدفعة", "todo", "critical", "admissions", "team-admissions", "employee-sara", "customer-2", "student-2", ["عاجل", "تسجيل"]],
-  ["TKT-1046", "مراجعة طلب خصم الرسوم", "in-progress", "high", "finance", "team-finance", "employee-omar", "customer-1", "student-2", ["سداد"]],
-  ["TKT-1045", "انتظار مستند إثبات الهوية", "waiting", "medium", "admissions", "team-admissions", undefined, "customer-2", "student-1", ["متابعة"]],
-  ["TKT-1044", "طلب نقل بين الفروع", "review", "high", "operations", "team-support", "employee-demo", "customer-1", "student-1", ["فرع"]],
-  ["TKT-1043", "تأكيد استلام دفعة", "done", "low", "finance", "team-finance", "employee-omar", "customer-2", "student-2", ["سداد"]],
-  ["TKT-1042", "تحديث موعد المقابلة", "todo", "medium", "admissions", "team-admissions", "employee-sara", "customer-1", undefined, ["تسجيل"]],
-  ["TKT-1041", "استفسار عن جدول الدراسة", "backlog", "low", "support", undefined, undefined, "customer-2", "student-2", []],
+  ["TKT-1048", "تحديث بيانات ولي الأمر", "backlog", "medium", "team-support", "employee-demo", "customer-1", "student-1", ["متابعة"]],
+  ["TKT-1047", "تعذر إتمام تسجيل الدفعة", "todo", "critical", "team-admissions", "employee-sara", "customer-2", "student-2", ["عاجل", "تسجيل"]],
+  ["TKT-1046", "مراجعة طلب خصم الرسوم", "in-progress", "high", "team-finance", "employee-omar", "customer-1", "student-2", ["سداد"]],
+  ["TKT-1045", "انتظار مستند إثبات الهوية", "waiting", "medium", "team-admissions", undefined, "customer-2", "student-1", ["متابعة"]],
+  ["TKT-1044", "طلب تعديل الجدول الدراسي", "review", "high", "team-support", "employee-demo", "customer-1", "student-1", ["جدول"]],
+  ["TKT-1043", "تأكيد استلام دفعة", "done", "low", "team-finance", "employee-omar", "customer-2", "student-2", ["سداد"]],
+  ["TKT-1042", "تحديث موعد المقابلة", "todo", "medium", "team-admissions", "employee-sara", "customer-1", undefined, ["تسجيل"]],
+  ["TKT-1041", "استفسار عن جدول الدراسة", "backlog", "low", undefined, undefined, "customer-2", "student-2", []],
 ] as const
 
 export const ticketFixtures: Ticket[] = definitions.map((row, index) => ({
   id: `ticket-${index + 1}` as TicketId,
   number: row[0], title: row[1], description: `تفاصيل تشغيلية حول: ${row[1]}. يرجى مراجعة السياق المرتبط واتخاذ الإجراء المناسب.`,
-  status: row[2], lastActiveStatus: row[2], priority: row[3], departmentId: row[4], branchId: index % 2 ? "branch-nasr" : "branch-main",
-  teamId: row[5] as TeamId | undefined, employeeId: row[6], customerId: row[7], studentId: row[8], conversationId: index < 2 ? `conversation-${index + 1}` : undefined,
-  dueAt: index < 5 ? new Date(now + (index - 1) * 86_400_000).toISOString() : undefined, tags: [...row[9]],
+  status: row[2], lastActiveStatus: row[2], priority: row[3],
+  teamId: row[4] as TeamId | undefined, employeeId: row[5], customerId: row[6], studentId: row[7], conversationId: index < 2 ? `conversation-${index + 1}` : undefined,
+  dueAt: index < 5 ? new Date(now + (index - 1) * 86_400_000).toISOString() : undefined, tags: [...row[8]],
   createdBy: "employee-demo" as UserId, createdAt: hoursAgo(72 - index * 6), updatedAt: hoursAgo(index + 1),
   completedAt: row[2] === "done" ? hoursAgo(2) : undefined, version: 1,
 }))

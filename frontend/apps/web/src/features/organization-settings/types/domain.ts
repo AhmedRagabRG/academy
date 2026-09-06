@@ -18,53 +18,11 @@ export interface OrganizationProfile extends BaseEntity {
   defaultLanguage: string
 }
 
-export interface Branch extends BaseEntity {
-  name: string
-  code: string
-  address: string
-  phone: string
-  /** Required by the API on create; every branch is reachable by email. */
-  email: string
-  managerId?: string
-  workingHours: string
-  status: EntityStatus
-}
-
-export interface Department extends BaseEntity {
-  name: string
-  code: string
-  description: string
-  status: EntityStatus
-}
-
-export interface AcademicYear extends BaseEntity {
-  name: string
-  code: string
-  startDate: string
-  endDate: string
-  status: EntityStatus
-}
-
-export interface AcademicTerm extends BaseEntity {
-  academicYearId: string
-  academicYearName: string
-  name: string
-  startDate: string
-  endDate: string
-  /** Position within the academic year; the API orders terms by it. */
-  order: number
-  status: EntityStatus
-}
-
 export interface InternalUser extends BaseEntity {
   fullName: string
   email: string
   phone: string
   profileImage?: FileAsset
-  branchId: string
-  branchName: string
-  departmentId: string
-  departmentName: string
   roleIds: string[]
   status: EntityStatus
 }
@@ -101,8 +59,6 @@ export interface GeneralSettings extends AuditMetadata {
   dateFormat: string
   numberFormat: string
   workingDays: string[]
-  defaultBranchId: string
-  defaultAcademicYearId: string
 }
 
-export type AdministrativeEntity = Branch | Department | AcademicYear | AcademicTerm | InternalUser | Role
+export type AdministrativeEntity = InternalUser | Role

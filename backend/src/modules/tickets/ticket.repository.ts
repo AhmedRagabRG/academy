@@ -106,8 +106,6 @@ export class TicketRepository {
       priority: [...(q.priority ?? [])].sort(),
       teamId: [...(q.teamId ?? [])].sort(),
       employeeId: [...(q.employeeId ?? [])].sort(),
-      departmentId: [...(q.departmentId ?? [])].sort(),
-      branchId: [...(q.branchId ?? [])].sort(),
       tag: [...(q.tag ?? [])].sort(),
       createdBy: [...(q.createdBy ?? [])].sort(),
       search: q.search?.trim().toLocaleLowerCase() ?? '',

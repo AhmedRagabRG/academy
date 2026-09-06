@@ -27,7 +27,6 @@ export function TicketForm({
       description: "",
       status: "backlog",
       priority: "medium",
-      departmentId: configuration.departments[0]?.id ?? "",
       tags: [],
     },
   })
@@ -53,7 +52,7 @@ export function TicketForm({
           </span>
         )}
       </label>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1 text-sm">
           الحالة
           <select className={field} {...register("status")}>
@@ -72,16 +71,6 @@ export function TicketForm({
             {configuration.priorities.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          القسم
-          <select className={field} {...register("departmentId")}>
-            {configuration.departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
               </option>
             ))}
           </select>

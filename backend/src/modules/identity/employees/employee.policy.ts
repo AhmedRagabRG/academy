@@ -12,18 +12,10 @@ export class EmployeePolicy {
     )
       throw new InvalidTransitionException();
   }
-  assertAssignments(
-    roleIds: string[],
-    branchIds: string[],
-    organizationWide: boolean,
-  ): void {
+  assertAssignments(roleIds: string[]): void {
     if (!roleIds.length)
       throw new ValidationException([
         { field: 'roleIds', message: 'يجب إسناد دور واحد على الأقل' },
-      ]);
-    if (!organizationWide && !branchIds.length)
-      throw new ValidationException([
-        { field: 'branchIds', message: 'يجب إسناد فرع واحد على الأقل' },
       ]);
   }
 }

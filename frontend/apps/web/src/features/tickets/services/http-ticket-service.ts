@@ -79,8 +79,6 @@ export const ticketListQuery = (
     priority: query.filters?.priorities,
     teamId: query.filters?.teamIds,
     employeeId: query.filters?.employeeIds,
-    departmentId: query.filters?.departmentIds,
-    branchId: query.filters?.branchIds,
     tag: query.filters?.tags,
     createdBy: query.filters?.createdByIds,
     sort: query.sort,
@@ -94,8 +92,6 @@ const createBody = (input: CreateTicketInput) => ({
   description: input.description,
   status: input.status,
   priority: input.priority,
-  departmentId: input.departmentId,
-  ...(input.branchId ? { branchId: input.branchId } : {}),
   ...(input.teamId ? { teamId: input.teamId } : {}),
   ...(input.employeeId ? { employeeId: input.employeeId } : {}),
   ...(input.customerId ? { customerId: input.customerId } : {}),
@@ -108,10 +104,6 @@ const createBody = (input: CreateTicketInput) => ({
 const updateBody = (input: Partial<CreateTicketInput>) => ({
   ...(input.title !== undefined ? { title: input.title } : {}),
   ...(input.description !== undefined ? { description: input.description } : {}),
-  ...(input.departmentId !== undefined
-    ? { departmentId: input.departmentId }
-    : {}),
-  ...(input.branchId !== undefined ? { branchId: input.branchId } : {}),
   ...(input.customerId !== undefined ? { customerId: input.customerId } : {}),
   ...(input.studentId !== undefined ? { studentId: input.studentId } : {}),
   ...(input.conversationId !== undefined

@@ -2,9 +2,12 @@ import { Injectable } from '@nestjs/common';
 import type {
   InboxDeliveryPort,
   InboxDeliveryRequest,
+  InboxReadReceiptRequest,
 } from './inbox-delivery.port';
 import { LocalInboxDeliveryAdapter } from './local-inbox-delivery.adapter';
 import { MetaInboxDeliveryAdapter } from './meta-inbox-delivery.adapter';
+
+const META_CHANNELS = new Set(['whatsapp', 'messenger', 'instagram']);
 
 @Injectable()
 export class ChannelInboxDeliveryAdapter implements InboxDeliveryPort {
@@ -14,19 +17,13 @@ export class ChannelInboxDeliveryAdapter implements InboxDeliveryPort {
   ) {}
 
   enqueue(request: InboxDeliveryRequest) {
-    return request.platformCode === 'whatsapp' ||
-      request.platformCode === 'messenger'
+    return META_CHANNELS.has(request.platformCode)
       ? this.meta.enqueue(request)
       : this.local.enqueue(request);
   }
 
-  markRead(request: {
-    platformCode: string;
-    recipientId: string;
-    providerMessageId?: string;
-  }) {
-    return request.platformCode === 'whatsapp' ||
-      request.platformCode === 'messenger'
+  markRead(request: InboxReadReceiptRequest) {
+    return META_CHANNELS.has(request.platformCode)
       ? this.meta.markRead(request)
       : this.local.markRead(request);
   }

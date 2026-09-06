@@ -13,8 +13,6 @@ export interface TicketFilters {
   priorities?: TicketPriority[]
   teamIds?: string[]
   employeeIds?: string[]
-  departmentIds?: string[]
-  branchIds?: string[]
   tags?: string[]
   createdByIds?: string[]
 }
@@ -36,8 +34,6 @@ export interface CreateTicketInput {
   description: string
   status: Exclude<TicketStatus, "archived">
   priority: TicketPriority
-  departmentId: string
-  branchId?: string
   teamId?: string
   employeeId?: string
   customerId?: string

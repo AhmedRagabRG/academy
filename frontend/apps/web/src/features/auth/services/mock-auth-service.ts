@@ -1,5 +1,4 @@
 import {
-  mockBranch,
   mockCredentials,
   mockEmployee,
   mockRole,
@@ -32,9 +31,7 @@ export const mockAuthService: AuthService = {
     const context: EmployeeContext = {
       employee: mockEmployee,
       role: mockRole,
-      branch: mockBranch,
       organizationId: "organization-alsalam",
-      authorizedBranchIds: mockEmployee.branchIds,
       organizationWide: true,
       authenticatedAt: new Date().toISOString(),
     }
@@ -48,7 +45,13 @@ export const mockAuthService: AuthService = {
     try {
       const result = sessionSchema.safeParse(JSON.parse(raw))
       if (!result.success) window.localStorage.removeItem(KEY)
-      return result.success ? result.data.context : null
+      if (!result.success) return null
+      const context = {
+        ...result.data.context,
+        role: mockRole,
+      }
+      window.localStorage.setItem(KEY, JSON.stringify({ version: 1, context }))
+      return context
     } catch {
       window.localStorage.removeItem(KEY)
       return null

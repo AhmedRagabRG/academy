@@ -1,9 +1,5 @@
 import type { EntityId, EntityStatus, PaginatedResult } from "../types/common"
 import type {
-  AcademicTerm,
-  AcademicYear,
-  Branch,
-  Department,
   GeneralSettings,
   InternalUser,
   OrganizationProfile,
@@ -18,9 +14,8 @@ import type { Page } from "@/shared/api"
  *
  * The two disagree in small, consistent ways — the API omits audit columns on
  * some records, names an employee `displayName` where the UI calls it
- * `fullName`, and scopes an employee to a list of branches where the UI shows
- * one. Isolating those conversions here keeps the service body about requests
- * and the domain types free of transport concerns.
+ * `fullName`. Isolating those conversions here keeps the service body about
+ * requests and the domain types free of transport concerns.
  */
 
 /** Audit fields the API leaves off some records but `BaseEntity` requires. */
@@ -50,106 +45,12 @@ export function toStatus(value: string | null | undefined): EntityStatus {
     : "inactive"
 }
 
-export interface ApiBranch extends AuditSource {
-  id: string
-  name: string
-  code: string
-  address: string | null
-  phone: string | null
-  email: string | null
-  managerId: string | null
-  workingHours: string | null
-  status: string
-  version: number
-}
-
-export const toBranch = (row: ApiBranch): Branch => ({
-  ...audit(row),
-  id: row.id as EntityId,
-  name: row.name,
-  code: row.code,
-  address: row.address ?? "",
-  phone: row.phone ?? "",
-  email: row.email ?? "",
-  managerId: row.managerId ?? undefined,
-  workingHours: row.workingHours ?? "",
-  status: toStatus(row.status),
-  version: row.version,
-})
-
-export interface ApiDepartment extends AuditSource {
-  id: string
-  name: string
-  code: string
-  description: string | null
-  status: string
-  version: number
-}
-
-export const toDepartment = (row: ApiDepartment): Department => ({
-  ...audit(row),
-  id: row.id as EntityId,
-  name: row.name,
-  code: row.code,
-  description: row.description ?? "",
-  status: toStatus(row.status),
-  version: row.version,
-})
-
-export interface ApiAcademicYear extends AuditSource {
-  id: string
-  name: string
-  code: string
-  startDate: string
-  endDate: string
-  status: string
-  version: number
-}
-
-export const toAcademicYear = (row: ApiAcademicYear): AcademicYear => ({
-  ...audit(row),
-  id: row.id as EntityId,
-  name: row.name,
-  code: row.code,
-  startDate: row.startDate,
-  endDate: row.endDate,
-  status: toStatus(row.status),
-  version: row.version,
-})
-
-export interface ApiAcademicTerm extends AuditSource {
-  id: string
-  academicYearId: string
-  academicYearName: string | null
-  name: string
-  startDate: string
-  endDate: string
-  order: number
-  status: string
-  version: number
-}
-
-export const toAcademicTerm = (row: ApiAcademicTerm): AcademicTerm => ({
-  ...audit(row),
-  id: row.id as EntityId,
-  academicYearId: row.academicYearId,
-  academicYearName: row.academicYearName ?? "",
-  name: row.name,
-  startDate: row.startDate,
-  endDate: row.endDate,
-  order: row.order,
-  status: toStatus(row.status),
-  version: row.version,
-})
-
 export interface ApiEmployee extends AuditSource {
   id: string
   email: string
   displayName: string
   phone: string | null
   position: string | null
-  departmentId: string | null
-  branchIds: string[]
   organizationWide: boolean
   avatar: { id: string; fileName: string; mimeType: string; size: number; url: string } | null
   status: string
@@ -159,16 +60,8 @@ export interface ApiEmployee extends AuditSource {
 
 /**
  * An employee as the settings UI models it.
- *
- * The API scopes an employee to a list of branches; this screen has always
- * shown a single branch, so the first assignment is the one displayed and the
- * one written back. Branch and department *names* are not on the payload and
- * are resolved by the caller, which already holds those lists.
  */
-export const toInternalUser = (
-  row: ApiEmployee,
-  names: { branch?: string; department?: string } = {}
-): InternalUser => ({
+export const toInternalUser = (row: ApiEmployee): InternalUser => ({
   ...audit(row),
   id: row.id as EntityId,
   fullName: row.displayName,
@@ -183,10 +76,6 @@ export const toInternalUser = (
         url: row.avatar.url,
       }
     : undefined,
-  branchId: row.branchIds[0] ?? "",
-  branchName: names.branch ?? "",
-  departmentId: row.departmentId ?? "",
-  departmentName: names.department ?? "",
   roleIds: row.roleIds,
   status: toStatus(row.status),
   version: row.version,
@@ -220,8 +109,6 @@ export interface ApiGeneralSettings extends AuditSource {
   dateFormat: string
   numberFormat: string
   workingDays: string[]
-  defaultBranchId: string
-  defaultAcademicYearId: string
   version: number
 }
 
@@ -239,8 +126,6 @@ export const toGeneralSettings = (
   dateFormat: row.dateFormat,
   numberFormat: row.numberFormat,
   workingDays: row.workingDays,
-  defaultBranchId: row.defaultBranchId,
-  defaultAcademicYearId: row.defaultAcademicYearId,
 })
 
 interface ApiAsset {

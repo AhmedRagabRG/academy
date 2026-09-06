@@ -24,7 +24,6 @@ export const inboxListParams = (
   statuses: query.statuses,
   employeeIds: query.employeeIds,
   teamIds: query.teamIds,
-  branchIds: query.branchIds,
   tagIds: query.tagIds,
   unreadOnly: query.unreadOnly,
   sort: query.sort,

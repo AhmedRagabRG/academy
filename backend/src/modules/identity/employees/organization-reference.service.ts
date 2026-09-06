@@ -10,12 +10,4 @@ export class OrganizationReferenceService implements OrganizationReferencePort {
     const employee = await this.employees.findById(accountId);
     return employee?.status === 'ACTIVE';
   }
-
-  countActiveBranchReferences(branchId: string): Promise<number> {
-    return this.employees.countActiveByBranch(branchId);
-  }
-
-  countActiveDepartmentReferences(departmentId: string): Promise<number> {
-    return this.employees.countActiveByDepartment(departmentId);
-  }
 }

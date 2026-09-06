@@ -1,11 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import {
+  META_MESSAGE_STATUS_EVENT,
+  type MetaMessageStatusEvent,
+} from '../../../core/events/meta-message-status.event';
 import { PrismaService } from '../../../database/prisma.service';
+import { ChannelCredentialsService } from '../channels/channel-credentials.service';
+import type { ChannelProviderCode } from '../channels/dto/channel.dto';
+import { InboxCrmLinkService } from '../crm/inbox-crm-link.service';
 import { InboxRealtimeService } from '../inbox-realtime.service';
 
 interface IncomingMessage {
-  channel: 'whatsapp' | 'messenger';
+  channel: ChannelProviderCode;
   accountId: string;
   participantId: string;
   providerMessageId: string;
@@ -14,12 +22,37 @@ interface IncomingMessage {
   sentAt: Date;
 }
 
+interface IncomingStatus {
+  channel: ChannelProviderCode;
+  id?: string;
+  state: string;
+  participantId?: string;
+  watermark?: Date;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+const DELIVERY_STATES: Record<
+  string,
+  'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
+> = {
+  sent: 'SENT',
+  delivered: 'DELIVERED',
+  read: 'READ',
+  failed: 'FAILED',
+};
+
 @Injectable()
 export class MetaWebhookService {
+  private readonly logger = new Logger(MetaWebhookService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly db: PrismaService,
     private readonly realtime: InboxRealtimeService,
+    private readonly channels: ChannelCredentialsService,
+    private readonly crm: InboxCrmLinkService,
+    private readonly events: EventEmitter2,
   ) {}
 
   verifyChallenge(mode?: string, token?: string): boolean {
@@ -44,14 +77,22 @@ export class MetaWebhookService {
     if (statuses.length || messages.length) this.realtime.publish();
   }
 
+  private channelOf(payload: unknown): ChannelProviderCode | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const object = string((payload as Record<string, unknown>).object);
+    if (object === 'whatsapp_business_account') return 'whatsapp';
+    if (object === 'page') return 'messenger';
+    if (object === 'instagram') return 'instagram';
+    return null;
+  }
+
   private messages(payload: unknown): IncomingMessage[] {
-    if (!payload || typeof payload !== 'object') return [];
+    const channel = this.channelOf(payload);
+    if (!channel) return [];
     const root = payload as Record<string, unknown>;
-    return root.object === 'whatsapp_business_account'
+    return channel === 'whatsapp'
       ? this.whatsappMessages(root)
-      : root.object === 'page'
-        ? this.messengerMessages(root)
-        : [];
+      : this.messagingMessages(root, channel);
   }
 
   private whatsappMessages(root: Record<string, unknown>): IncomingMessage[] {
@@ -67,6 +108,7 @@ export class MetaWebhookService {
             string(record(message.text).body) ||
             string(record(message.button).text) ||
             string(record(record(message.interactive).button_reply).title) ||
+            string(record(record(message.interactive).list_reply).title) ||
             `[${string(message.type) || 'message'}]`;
           const providerMessageId = string(message.id);
           const participantId = string(message.from);
@@ -85,7 +127,11 @@ export class MetaWebhookService {
     return result;
   }
 
-  private messengerMessages(root: Record<string, unknown>): IncomingMessage[] {
+  /** Messenger and Instagram share the Messenger Platform event shape. */
+  private messagingMessages(
+    root: Record<string, unknown>,
+    channel: 'messenger' | 'instagram',
+  ): IncomingMessage[] {
     const result: IncomingMessage[] = [];
     for (const entry of array(root.entry)) {
       const accountId = string(record(entry).id);
@@ -96,13 +142,22 @@ export class MetaWebhookService {
         const providerMessageId = string(message.mid);
         const participantId = string(record(event.sender).id);
         if (!accountId || !providerMessageId || !participantId) continue;
+        const attachments = array(message.attachments);
+        const body =
+          string(message.text) ||
+          (attachments.length
+            ? `[${string(record(attachments[0]).type) || 'attachment'}]`
+            : '[attachment]');
         result.push({
-          channel: 'messenger',
+          channel,
           accountId,
           participantId,
           providerMessageId,
-          senderName: `Messenger ${participantId.slice(-6)}`,
-          body: string(message.text) || '[attachment]',
+          senderName:
+            channel === 'instagram'
+              ? `Instagram ${participantId.slice(-6)}`
+              : `Messenger ${participantId.slice(-6)}`,
+          body,
           sentAt: timestamp(event.timestamp),
         });
       }
@@ -110,69 +165,84 @@ export class MetaWebhookService {
     return result;
   }
 
-  private statuses(payload: unknown): Array<{
-    id?: string;
-    state: string;
-    participantId?: string;
-    watermark?: Date;
-  }> {
-    if (!payload || typeof payload !== 'object') return [];
+  private statuses(payload: unknown): IncomingStatus[] {
+    const channel = this.channelOf(payload);
+    if (!channel) return [];
     const root = payload as Record<string, unknown>;
-    if (root.object === 'page') return this.messengerStatuses(root);
-    if (root.object !== 'whatsapp_business_account') return [];
-    const result: Array<{ id: string; state: string }> = [];
+    if (channel !== 'whatsapp') return this.messagingStatuses(root, channel);
+    const result: IncomingStatus[] = [];
     for (const entry of array(root.entry))
       for (const change of array(record(entry).changes))
         for (const source of array(record(record(change).value).statuses)) {
           const status = record(source);
           const id = string(status.id);
           const state = string(status.status);
-          if (id && state) result.push({ id, state });
+          const failure = record(array(status.errors)[0]);
+          if (id && state)
+            result.push({
+              channel: 'whatsapp',
+              id,
+              state,
+              errorCode:
+                typeof failure.code === 'number' ||
+                typeof failure.code === 'string'
+                  ? String(failure.code)
+                  : undefined,
+              errorMessage:
+                string(record(failure.error_data).details) ||
+                string(failure.title) ||
+                string(failure.message) ||
+                undefined,
+            });
         }
     return result;
   }
 
-  private messengerStatuses(root: Record<string, unknown>) {
-    const result: Array<{
-      id?: string;
-      state: string;
-      participantId?: string;
-      watermark?: Date;
-    }> = [];
+  private messagingStatuses(
+    root: Record<string, unknown>,
+    channel: 'messenger' | 'instagram',
+  ): IncomingStatus[] {
+    const result: IncomingStatus[] = [];
     for (const entry of array(root.entry))
       for (const source of array(record(entry).messaging)) {
         const event = record(source);
         for (const id of array(record(event.delivery).mids))
-          if (typeof id === 'string') result.push({ id, state: 'delivered' });
-        const watermark = record(event.read).watermark;
+          if (typeof id === 'string')
+            result.push({ channel, id, state: 'delivered' });
+        const read = record(event.read);
         const participantId = string(record(event.sender).id);
-        if (watermark && participantId)
+        // Messenger reports a watermark; Instagram reports the message id.
+        if (read.watermark && participantId)
           result.push({
+            channel,
             state: 'read',
             participantId,
-            watermark: timestamp(watermark),
+            watermark: timestamp(read.watermark),
           });
+        else if (string(read.mid))
+          result.push({ channel, state: 'read', id: string(read.mid) });
       }
     return result;
   }
 
-  private async applyStatus(status: {
-    id?: string;
-    state: string;
-    participantId?: string;
-    watermark?: Date;
-  }) {
-    const delivery = {
-      sent: 'SENT',
-      delivered: 'DELIVERED',
-      read: 'READ',
-      failed: 'FAILED',
-    }[status.state] as 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | undefined;
-    if (delivery && status.id)
+  private async applyStatus(status: IncomingStatus): Promise<void> {
+    const delivery = DELIVERY_STATES[status.state];
+    if (!delivery) return;
+    if (status.id) {
       await this.db.inboxMessage.updateMany({
         where: { providerMessageId: status.id },
         data: { delivery },
       });
+      // Published for whoever owns the message; a receipt for a message this
+      // inbox never sent — a campaign send, say — matches nothing above.
+      this.events.emit(META_MESSAGE_STATUS_EVENT, {
+        providerMessageId: status.id,
+        state: status.state as MetaMessageStatusEvent['state'],
+        occurredAt: new Date().toISOString(),
+        errorCode: status.errorCode,
+        errorMessage: status.errorMessage,
+      } satisfies MetaMessageStatusEvent);
+    }
     if (delivery === 'READ' && status.participantId && status.watermark)
       await this.db.inboxMessage.updateMany({
         where: {
@@ -180,19 +250,30 @@ export class MetaWebhookService {
           sentAt: { lte: status.watermark },
           conversation: {
             providerThreadId: status.participantId,
-            platform: { code: 'messenger' },
+            platform: { code: status.channel },
           },
         },
         data: { delivery: 'READ' },
       });
   }
 
+  private threadIdentity(input: IncomingMessage): string {
+    if (input.channel === 'whatsapp')
+      return input.participantId.replace(/\D/g, '');
+    return `${input.channel}:${input.participantId}`;
+  }
+
   private async persist(input: IncomingMessage): Promise<void> {
-    const configuredAccount =
-      input.channel === 'whatsapp'
-        ? this.config.get<string>('meta.whatsappPhoneNumberId')
-        : this.config.get<string>('meta.messengerPageId');
-    if (configuredAccount && configuredAccount !== input.accountId) return;
+    const route = await this.channels.forInbound(
+      input.channel,
+      input.accountId,
+    );
+    if (!route) {
+      this.logger.warn(
+        `Dropped ${input.channel} message for unlinked account ${input.accountId}`,
+      );
+      return;
+    }
     if (
       await this.db.inboxMessage.findUnique({
         where: { providerMessageId: input.providerMessageId },
@@ -200,87 +281,76 @@ export class MetaWebhookService {
       })
     )
       return;
-    const platform = await this.db.inboxPlatform.findFirst({
-      where: { code: input.channel, active: true },
-      orderBy: { id: 'asc' },
-    });
-    if (!platform) return;
-    const branch = await this.db.branch.findFirstOrThrow({
-      where: { organizationId: platform.organizationId, status: 'ACTIVE' },
-      orderBy: { code: 'asc' },
-    });
-    const normalizedPhone =
-      input.channel === 'whatsapp'
-        ? input.participantId.replace(/\D/g, '')
-        : `messenger:${input.participantId}`;
+    const normalizedPhone = this.threadIdentity(input);
     const now = input.sentAt;
     const customer = await this.db.inboxCustomer.upsert({
       where: {
         organizationId_normalizedPhone: {
-          organizationId: platform.organizationId,
+          organizationId: route.organizationId,
           normalizedPhone,
         },
       },
-      update: {
-        name: input.senderName,
-        normalizedName: input.senderName.toLowerCase(),
-        lastActivityAt: now,
-      },
+      update: { name: input.senderName, lastActivityAt: now },
       create: {
-        organizationId: platform.organizationId,
-        branchId: branch.id,
+        organizationId: route.organizationId,
         name: input.senderName,
-        normalizedName: input.senderName.toLowerCase(),
+        normalizedName: input.senderName.toLocaleLowerCase(),
         phone: input.participantId,
         normalizedPhone,
         firstContactAt: now,
         lastActivityAt: now,
       },
     });
+    const message = {
+      direction: 'INCOMING' as const,
+      senderName: input.senderName,
+      body: input.body,
+      sentAt: now,
+      delivery: 'RECEIVED' as const,
+      providerMessageId: input.providerMessageId,
+    };
     await this.db.inboxConversation.upsert({
       where: {
         platformId_providerThreadId: {
-          platformId: platform.id,
+          platformId: route.platformId,
           providerThreadId: input.participantId,
         },
       },
       update: {
         status: 'OPEN',
+        deletedAt: null,
         lastMessage: input.body,
         lastActivityAt: now,
         unreadCount: { increment: 1 },
         version: { increment: 1 },
-        messages: {
-          create: {
-            direction: 'INCOMING',
-            senderName: input.senderName,
-            body: input.body,
-            sentAt: now,
-            delivery: 'RECEIVED',
-            providerMessageId: input.providerMessageId,
-          },
-        },
+        messages: { create: message },
       },
       create: {
-        organizationId: platform.organizationId,
+        organizationId: route.organizationId,
         customerId: customer.id,
-        platformId: platform.id,
+        platformId: route.platformId,
         providerThreadId: input.participantId,
         status: 'OPEN',
         unreadCount: 1,
         lastMessage: input.body,
         lastActivityAt: now,
-        messages: {
-          create: {
-            direction: 'INCOMING',
-            senderName: input.senderName,
-            body: input.body,
-            sentAt: now,
-            delivery: 'RECEIVED',
-            providerMessageId: input.providerMessageId,
-          },
-        },
+        messages: { create: message },
       },
+    });
+    await this.channels.markInbound(route.connectionId);
+    const platform = await this.db.inboxPlatform.findUnique({
+      where: { id: route.platformId },
+      select: { label: true },
+    });
+    await this.crm.link({
+      organizationId: route.organizationId,
+      customerId: customer.id,
+      identity: normalizedPhone,
+      name: input.senderName,
+      phone: input.participantId,
+      platformCode: input.channel,
+      platformLabel: platform?.label,
+      occurredAt: now,
     });
   }
 }

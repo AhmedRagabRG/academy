@@ -45,7 +45,6 @@ export interface StatusDefinition {
 export interface ListQuery {
   search?: string
   status?: EntityStatus | "all"
-  academicYearId?: string
   sort?: string
   direction?: "asc" | "desc"
   page: number

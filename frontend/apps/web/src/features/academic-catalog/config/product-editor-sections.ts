@@ -1,1 +1,0 @@
-export const productEditorSections = [{ id: "basic", label: "المعلومات الأساسية" }, { id: "academic", label: "المعلومات الأكاديمية" }, { id: "pricing", label: "المعلومات المالية" }, { id: "availability", label: "توفر الفروع" }, { id: "sales", label: "معلومات المبيعات" }] as const

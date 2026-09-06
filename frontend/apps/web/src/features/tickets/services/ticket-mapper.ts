@@ -28,8 +28,6 @@ interface ApiEmployee extends ApiNamedEntity { teamIds: string[] }
 export interface ApiTicketConfiguration {
   statuses: Array<{ id: string; name: string; order: number }>
   priorities: Array<{ id: string; name: string; tone: string; order: number }>
-  departments: ApiNamedEntity[]
-  branches: ApiNamedEntity[]
   teams: ApiNamedEntity[]
   employees: ApiEmployee[]
   customers: ApiNamedEntity[]
@@ -46,8 +44,6 @@ export interface ApiTicket {
   status: string
   lastActiveStatus: string
   priority: string
-  departmentId: string
-  branchId?: string
   teamId?: string
   employeeId?: string
   customerId?: string
@@ -60,8 +56,6 @@ export interface ApiTicket {
   updatedAt: string
   completedAt?: string
   version: number
-  departmentName: string
-  branchName?: string
   teamName?: string
   employeeName?: string
   customerName?: string
@@ -115,8 +109,6 @@ const ticketBase = (row: ApiTicket) => ({
   status: row.status as TicketStatus,
   lastActiveStatus: row.lastActiveStatus as Exclude<TicketStatus, "archived">,
   priority: row.priority as TicketPriority,
-  departmentId: row.departmentId,
-  branchId: row.branchId,
   teamId: row.teamId as TeamId | undefined,
   employeeId: row.employeeId,
   customerId: row.customerId,
@@ -133,8 +125,6 @@ const ticketBase = (row: ApiTicket) => ({
 
 export const toTicketSummary = (row: ApiTicket): TicketSummary => ({
   ...ticketBase(row),
-  departmentName: row.departmentName,
-  branchName: row.branchName,
   teamName: row.teamName,
   employeeName: row.employeeName,
   customerName: row.customerName,

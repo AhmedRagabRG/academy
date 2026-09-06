@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   InboxDeliveryPort,
   InboxDeliveryRequest,
+  InboxReadReceiptRequest,
 } from './inbox-delivery.port';
 
 @Injectable()
@@ -12,11 +13,7 @@ export class LocalInboxDeliveryAdapter implements InboxDeliveryPort {
       providerReference: `local:${request.platformCode}:${request.messageId}`,
     });
   }
-  markRead(request?: {
-    platformCode: string;
-    recipientId: string;
-    providerMessageId?: string;
-  }) {
+  markRead(request?: InboxReadReceiptRequest) {
     void request;
     return Promise.resolve();
   }

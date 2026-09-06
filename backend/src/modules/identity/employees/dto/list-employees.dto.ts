@@ -22,8 +22,6 @@ export enum EmployeeSort {
 export class ListEmployeesDto {
   @IsOptional() @IsString() search?: string;
   @IsOptional() @IsUUID() roleId?: string;
-  @IsOptional() @IsUUID() branchId?: string;
-  @IsOptional() @IsUUID() departmentId?: string;
   @IsOptional()
   @Transform(uppercaseStatus)
   @IsEnum(EntityStatus)

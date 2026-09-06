@@ -10,6 +10,14 @@
 @theme inline {
   --font-heading: var(--font-heading-family);
   --font-sans: var(--font-body-family);
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.25rem;
+  --text-3xl: 1.5rem;
+  --text-4xl: 1.75rem;
   --color-brand-navy: var(--brand-navy);
   --color-brand-blue: var(--brand-blue);
   --color-brand-gold: var(--brand-gold);
@@ -146,12 +154,13 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body-family);
-    font-size: 1rem;
+    font-size: 0.875rem;
     line-height: 1.5;
     font-kerning: normal;
   }
   h1, h2, h3, h4, h5, h6, strong {
     font-family: var(--font-heading-family);
+    font-weight: 500;
   }
   :lang(en) {
     --font-heading-family: var(--font-english-heading);

@@ -23,7 +23,6 @@ export interface InboxLookups {
   platforms: { id: string; label: string }[]
   statuses: { id: ConversationStatus; label: string }[]
   tags: { id: string; label: string; color: string }[]
-  branches: { id: string; label: string }[]
   teams: { id: string; label: string }[]
   employees: { id: string; label: string }[]
 }

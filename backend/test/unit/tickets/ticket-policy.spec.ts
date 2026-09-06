@@ -12,7 +12,6 @@ const caller = (permissionKeys: string[]): CallerContext => ({
   sessionId: 'session',
   roles: [],
   permissionKeys,
-  authorizedBranchIds: [],
   organizationWide: false,
   authenticatedAt: new Date(0).toISOString(),
 });
@@ -30,9 +29,7 @@ describe('TicketPolicy', () => {
         ]),
         ['team-1'],
       ),
-    ).toEqual({
-      AND: [{}, { OR: [{ branchId: null }, { branchId: { in: [] } }] }],
-    });
+    ).toEqual({});
   });
 
   it('applies team over assigned visibility', () => {
@@ -40,20 +37,12 @@ describe('TicketPolicy', () => {
       policy.scope(caller(['tickets.view.assigned', 'tickets.view.team']), [
         'team-1',
       ]),
-    ).toEqual({
-      AND: [
-        { teamId: { in: ['team-1'] } },
-        { OR: [{ branchId: null }, { branchId: { in: [] } }] },
-      ],
-    });
+    ).toEqual({ teamId: { in: ['team-1'] } });
   });
 
   it('limits assigned visibility to the authenticated account', () => {
     expect(policy.scope(caller(['tickets.view.assigned']), [])).toEqual({
-      AND: [
-        { employeeId: '00000000-0000-4000-8000-000000000001' },
-        { OR: [{ branchId: null }, { branchId: { in: [] } }] },
-      ],
+      employeeId: '00000000-0000-4000-8000-000000000001',
     });
   });
 

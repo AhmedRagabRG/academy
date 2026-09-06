@@ -30,16 +30,6 @@ export class EmployeeRepository extends BaseRepository<
       where: { email: email.toLowerCase() },
     });
   }
-  countActiveByBranch(branchId: string) {
-    return this.delegate.count({
-      where: { status: EntityStatus.ACTIVE, branchIds: { has: branchId } },
-    });
-  }
-  countActiveByDepartment(departmentId: string) {
-    return this.delegate.count({
-      where: { status: EntityStatus.ACTIVE, departmentId },
-    });
-  }
   async list(
     where: Prisma.AccountWhereInput,
     skip: number,

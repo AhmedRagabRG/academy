@@ -9,8 +9,6 @@ export interface EmployeeAssignmentReference {
   active: boolean;
   assignmentEligible: boolean;
   managerEligible: boolean;
-  branchIds: readonly string[];
-  departmentId?: string;
   disabledReason?: 'inactive' | 'archived';
 }
 

@@ -5,7 +5,6 @@ import type {
   Platform,
   Tag,
   Team,
-  Branch,
   Message,
   InternalNote,
   AssignmentHistoryEvent,
@@ -18,7 +17,22 @@ export interface ConversationView extends Conversation {
   employee: Employee | null
   team: Team | null
   tags: Tag[]
-  branch: Branch
+}
+
+/**
+ * The CRM records the API linked to this conversation's customer. Null while a
+ * customer has no contact yet, and `lead` is null when every opportunity for
+ * that contact is already closed.
+ */
+export interface ConversationCrmLink {
+  contactId: string
+  lead: {
+    id: string
+    pipelineId: string
+    stageId: string
+    stageRecordId: string
+    stageName: string
+  } | null
 }
 
 export interface ConversationDetail extends ConversationView {
@@ -26,6 +40,7 @@ export interface ConversationDetail extends ConversationView {
   notes: InternalNote[]
   assignmentHistory: AssignmentHistoryEvent[]
   systemEvents: SystemEvent[]
+  crm: ConversationCrmLink | null
 }
 
 export interface InboxDashboard {

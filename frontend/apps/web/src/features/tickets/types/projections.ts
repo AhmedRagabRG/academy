@@ -15,8 +15,6 @@ export interface TicketCapabilities {
 }
 
 export interface TicketSummary extends Ticket {
-  departmentName: string
-  branchName?: string
   teamName?: string
   employeeName?: string
   customerName?: string

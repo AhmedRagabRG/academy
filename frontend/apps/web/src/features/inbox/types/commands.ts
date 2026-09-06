@@ -1,6 +1,5 @@
 import type { Attachment } from "./domain"
 import type {
-  BranchId,
   ConversationId,
   ConversationStatus,
   EmployeeId,
@@ -17,7 +16,6 @@ export interface InboxListQuery {
   statuses: ConversationStatus[]
   employeeIds: EmployeeId[]
   teamIds: TeamId[]
-  branchIds: BranchId[]
   tagIds: TagId[]
   unreadOnly: boolean
   sort: SortMode

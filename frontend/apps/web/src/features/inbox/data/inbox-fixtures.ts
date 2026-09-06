@@ -1,6 +1,5 @@
 import type { Conversation, Customer } from "../types/domain"
 import type {
-  BranchId,
   ConversationId,
   CustomerId,
   EmployeeId,
@@ -30,7 +29,6 @@ export const customers: Customer[] = customerNames.map((name, index) => ({
   id: `customer-${index + 1}` as CustomerId,
   name,
   phone: `+20 10 5555 ${String(1100 + index)}`,
-  branchId: (index % 2 ? "branch-nasr" : "branch-main") as BranchId,
   firstContactAt: new Date(now - (index + 20) * 86400000).toISOString(),
   lastActivityAt: new Date(now - index * 3600000).toISOString(),
 }))

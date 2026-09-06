@@ -20,8 +20,6 @@ export interface Ticket {
   status: TicketStatus
   lastActiveStatus: Exclude<TicketStatus, "archived">
   priority: TicketPriority
-  departmentId: string
-  branchId?: string
   teamId?: TeamId
   employeeId?: string
   customerId?: string
@@ -83,8 +81,6 @@ export interface TicketAttachment {
 export interface TicketConfiguration {
   statuses: { id: TicketStatus; name: string; order: number }[]
   priorities: { id: TicketPriority; name: string; tone: string; order: number }[]
-  departments: NamedEntity[]
-  branches: NamedEntity[]
   teams: (NamedEntity & { id: TeamId })[]
   employees: Employee[]
   customers: NamedEntity[]

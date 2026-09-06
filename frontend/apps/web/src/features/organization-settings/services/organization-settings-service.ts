@@ -1,5 +1,5 @@
 import type { ListQuery, LookupOption, PaginatedResult } from "../types/common"
-import type { AcademicTerm, AcademicYear, Branch, Department, GeneralSettings, InternalUser, OrganizationProfile, PermissionGroup, Role } from "../types/domain"
+import type { GeneralSettings, InternalUser, OrganizationProfile, PermissionGroup, Role } from "../types/domain"
 
 export interface OrganizationLookups {
   languages: LookupOption[]
@@ -11,12 +11,8 @@ export interface OrganizationLookups {
   weekdays: LookupOption[]
 }
 
-export type EntityKind = "branches" | "departments" | "academic-years" | "academic-terms" | "users" | "roles"
+export type EntityKind = "users" | "roles"
 export type EntityByKind = {
-  branches: Branch
-  departments: Department
-  "academic-years": AcademicYear
-  "academic-terms": AcademicTerm
   users: InternalUser
   roles: Role
 }
@@ -32,7 +28,6 @@ export interface OrganizationSettingsService {
   create<K extends EntityKind>(kind: K, input: Omit<EntityByKind[K], "id" | "organizationId" | "version" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy">): Promise<EntityByKind[K]>
   update<K extends EntityKind>(kind: K, id: string, input: Partial<EntityByKind[K]> & { expectedVersion: number }): Promise<EntityByKind[K]>
   changeStatus<K extends EntityKind>(kind: K, id: string, status: EntityByKind[K]["status"], expectedVersion: number): Promise<EntityByKind[K]>
-  activateAcademicYear(id: string, expectedVersion: number): Promise<AcademicYear>
   getPermissionCatalog(): Promise<PermissionGroup[]>
   replaceRolePermissions(roleId: string, permissionIds: string[], expectedVersion: number): Promise<Role>
   getEffectivePermissions(userId: string): Promise<string[]>

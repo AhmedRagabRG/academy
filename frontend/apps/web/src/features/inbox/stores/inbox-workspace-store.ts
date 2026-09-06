@@ -10,7 +10,6 @@ export const defaultInboxQuery: InboxListQuery = {
   statuses: [],
   employeeIds: [],
   teamIds: [],
-  branchIds: [],
   tagIds: [],
   unreadOnly: false,
   sort: "latest",

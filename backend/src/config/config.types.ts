@@ -35,11 +35,25 @@ export interface PasswordPolicyConfig {
   minLength: number;
 }
 export interface MetaConfig {
+  appId: string;
   appSecret: string;
   verifyToken: string;
   graphVersion: string;
+  redirectUri: string;
   whatsappAccessToken: string;
   whatsappPhoneNumberId: string;
   messengerPageAccessToken: string;
   messengerPageId: string;
+  instagramAccessToken: string;
+  instagramAccountId: string;
+}
+export interface CampaignsConfig {
+  /** Turned off in tests and in workers that must not send. */
+  dispatchEnabled: boolean;
+  tickMs: number;
+  /** Hard ceiling per tick, whatever a single campaign's throttle asks for. */
+  maxPerTick: number;
+}
+export interface ChannelSecretsConfig {
+  encryptionKey: string;
 }

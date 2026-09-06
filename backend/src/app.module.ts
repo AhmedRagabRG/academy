@@ -13,14 +13,11 @@ import { HealthModule } from './health/health.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { StorageModule } from './storage/storage.module';
-import { CatalogModule } from './modules/catalog/catalog.module';
-import { ProgramBatchesModule } from './modules/program-batches/program-batches.module';
-import { AdmissionsModule } from './modules/admissions/admissions.module';
-import { StudentsModule } from './modules/students/students.module';
-import { StudentFinanceModule } from './modules/student-finance/student-finance.module';
-import { AccountingModule } from './modules/accounting/accounting.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { InboxModule } from './modules/inbox/inbox.module';
+import { ContactsModule } from './modules/contacts/contacts.module';
+import { LeadPipelineModule } from './modules/lead-pipeline/lead-pipeline.module';
+import { CampaignsModule } from './modules/campaigns/campaigns.module';
 
 @Module({
   imports: [
@@ -49,14 +46,11 @@ import { InboxModule } from './modules/inbox/inbox.module';
     HealthModule,
     IdentityModule,
     OrganizationModule,
-    CatalogModule,
-    ProgramBatchesModule,
-    AdmissionsModule,
-    StudentsModule,
-    StudentFinanceModule,
-    AccountingModule,
     TicketsModule,
     InboxModule,
+    ContactsModule,
+    LeadPipelineModule,
+    CampaignsModule,
   ],
   providers: [
     { provide: APP_GUARD, useExisting: AuthGuard },

@@ -24,13 +24,12 @@ export function CustomerProfile({
 }) {
   return (
     <section aria-labelledby="customer-profile-title" className="space-y-4">
-      <h3 id="customer-profile-title" className="font-semibold">
+      <h3 id="customer-profile-title" className="font-medium">
         بيانات العميل
       </h3>
       <dl className="space-y-4">
         <Item label="الاسم" value={conversation.customer.name} />
         <Item label="الهاتف" value={conversation.customer.phone} ltr />
-        <Item label="الفرع" value={conversation.branch.label} />
         <Item
           label="الموظف المسؤول"
           value={conversation.employee?.label ?? "غير مسند"}

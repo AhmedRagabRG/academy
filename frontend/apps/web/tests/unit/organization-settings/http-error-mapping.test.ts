@@ -27,10 +27,6 @@ const employee = {
   fullName: "موظف",
   email: "staff@alsalam.academy",
   phone: "+201234567890",
-  branchId: "branch-1",
-  branchName: "",
-  departmentId: "dept-1",
-  departmentName: "",
   roleIds: ["role-1"],
   status: "active",
   password: "Str0ngPassw0rd!",
@@ -74,20 +70,6 @@ describe("employee write failures", () => {
     expect(error.fieldErrors).toEqual({ fullName: "الاسم طويل" })
   })
 
-  it("renames branchIds onto the form's single branchId field", async () => {
-    globalThis.fetch = respondWith(422, {
-      success: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "بيانات غير صالحة",
-        details: [{ field: "branchIds", message: "الفرع مطلوب" }],
-      },
-    }) as never
-
-    const error = await service.create("users", employee).catch((e) => e)
-    expect(error.fieldErrors).toEqual({ branchId: "الفرع مطلوب" })
-  })
-
   it("marks the email field when the address is already taken", async () => {
     // The identity module raises EMAIL_EXISTS with no details of its own.
     globalThis.fetch = respondWith(409, {
@@ -124,7 +106,7 @@ describe("employee write failures", () => {
     }) as never
 
     const error = await service
-      .update("branches", "branch-1", { expectedVersion: 1 })
+      .update("users", "user-1", { expectedVersion: 1 })
       .catch((e) => e)
     expect(error.kind).toBe("version-conflict")
   })

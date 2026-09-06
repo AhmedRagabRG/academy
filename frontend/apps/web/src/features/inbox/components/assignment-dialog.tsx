@@ -34,7 +34,7 @@ export function AssignmentDialog({
           className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
         >
           <div className="w-full max-w-md space-y-4 rounded-xl border bg-card p-5">
-            <h2 id="assignment-title" className="font-semibold">
+            <h2 id="assignment-title" className="font-medium">
               إسناد المحادثة
             </h2>
             <label className="block text-sm">

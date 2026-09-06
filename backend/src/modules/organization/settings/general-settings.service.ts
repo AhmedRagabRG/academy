@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { DomainEventBus } from '../../../core/events/domain-event.bus';
 import {
   NotFoundException,
-  ValidationException,
   VersionConflictException,
 } from '../../../core/exceptions';
 import { TransactionManager } from '../../../database/transaction.manager';
@@ -27,22 +26,6 @@ export class GeneralSettingsService {
     const current = await this.repository.get();
     if (!current) throw new NotFoundException();
     const record = await this.transactions.run(async (tx) => {
-      const [branch, year] = await Promise.all([
-        this.repository.activeBranch(dto.defaultBranchId, tx),
-        this.repository.activeYear(dto.defaultAcademicYearId, tx),
-      ]);
-      const details = [];
-      if (!branch)
-        details.push({
-          field: 'defaultBranchId',
-          message: 'يجب اختيار فرع نشط',
-        });
-      if (!year)
-        details.push({
-          field: 'defaultAcademicYearId',
-          message: 'يجب اختيار العام الأكاديمي النشط',
-        });
-      if (details.length) throw new ValidationException(details);
       const { expectedVersion, ...data } = dto;
       const result = await this.repository.update(
         current.id,

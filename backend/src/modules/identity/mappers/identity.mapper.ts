@@ -6,8 +6,6 @@ type EmployeeRecord = {
   displayName: string;
   phone: string;
   position: string | null;
-  departmentId: string | null;
-  branchIds: string[];
   organizationWide: boolean;
   avatar: unknown;
   status: string;
@@ -52,8 +50,6 @@ export function mapEmployee(record: EmployeeRecord): PublicEmployee {
     displayName: record.displayName,
     phone: record.phone,
     position: record.position,
-    departmentId: record.departmentId,
-    branchIds: [...record.branchIds].sort(),
     organizationWide: record.organizationWide,
     avatar: record.avatar,
     status: record.status.toLowerCase(),
@@ -81,11 +77,9 @@ export function mapEmployeeContext(
       email: employee.email,
       avatar: employee.avatar,
       roleIds: employee.roleIds,
-      branchIds: employee.branchIds,
     },
     roles: employee.roles,
     permissionKeys: employee.permissionKeys,
-    authorizedBranchIds: employee.branchIds,
     organizationWide: employee.organizationWide,
     authenticatedAt,
   };

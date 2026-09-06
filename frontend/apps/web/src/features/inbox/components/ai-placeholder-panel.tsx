@@ -17,7 +17,7 @@ const capabilities = [
 export function AiPlaceholderPanel() {
   return (
     <section aria-labelledby="ai-title">
-      <h3 id="ai-title" className="font-semibold">
+      <h3 id="ai-title" className="font-medium">
         مساعد الذكاء الاصطناعي
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">

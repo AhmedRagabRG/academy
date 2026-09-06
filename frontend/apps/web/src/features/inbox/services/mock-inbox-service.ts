@@ -1,9 +1,14 @@
+import { findMockContactByName } from "@/features/contacts/services/mock-contacts-service"
+import {
+  findMockLeadByContact,
+  mockPipelineId,
+  mockPipelineStages,
+} from "@/features/lead-pipeline/services/mock-pipeline-service"
 import {
   conversations as conversationSeeds,
   customers,
 } from "../data/inbox-fixtures"
 import {
-  branches,
   employees,
   platforms,
   tags,
@@ -38,6 +43,7 @@ import type {
 } from "../types/common"
 import type { Conversation, InternalNote } from "../types/domain"
 import type {
+  ConversationCrmLink,
   ConversationDetail,
   ConversationView,
   InboxDashboard,
@@ -102,17 +108,44 @@ class MockInboxService implements InboxService {
       throw new InboxError("NOT_FOUND", "لم تعد المحادثة متاحة")
     return row
   }
+  /**
+   * Mirrors the API's link between an inbox customer and the CRM. The API
+   * matches on channel identity; the fixtures only share names, so a customer
+   * whose name has no contact reads as not-yet-linked — which is what the real
+   * system shows until an inbound message creates the pair.
+   */
+  private crmLink(customerName: string): ConversationCrmLink | null {
+    const contact = findMockContactByName(customerName)
+    if (!contact) return null
+    const lead = findMockLeadByContact(contact.id)
+    const stage = lead
+      ? mockPipelineStages().find((item) => item.id === lead.stageId)
+      : undefined
+    return {
+      contactId: contact.id,
+      lead:
+        lead && stage
+          ? {
+              id: lead.id,
+              pipelineId: mockPipelineId,
+              stageId: stage.id,
+              stageRecordId: stage.id,
+              stageName: stage.name,
+            }
+          : null,
+    }
+  }
   private project(row: Conversation): ConversationDetail {
     const customer = customers.find((item) => item.id === row.customerId)!
     return {
       ...structuredClone(row),
+      crm: this.crmLink(customer.name),
       customer,
       platform: platforms.find((item) => item.id === row.platformId)!,
       employee:
         employees.find((item) => item.id === row.assignedEmployeeId) ?? null,
       team: teams.find((item) => item.id === row.assignedTeamId) ?? null,
       tags: tags.filter((tag) => row.tagIds.includes(tag.id)),
-      branch: branches.find((branch) => branch.id === customer.branchId)!,
     }
   }
   private touch(row: Conversation, label: string) {
@@ -204,7 +237,6 @@ class MockInboxService implements InboxService {
         label,
       })),
       tags,
-      branches,
       teams,
       employees,
     }

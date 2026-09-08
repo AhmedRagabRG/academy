@@ -149,7 +149,9 @@ export class LeadService {
         active: true,
         ...(pipelineId ? { id: pipelineId } : { isDefault: true }),
       },
-      include: { stages: { orderBy: { position: 'asc' } } },
+      include: {
+        stages: { where: { active: true }, orderBy: { position: 'asc' } },
+      },
     });
     if (!pipeline)
       throw new DomainException(

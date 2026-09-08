@@ -27,8 +27,6 @@ const config = {
 const service = new TicketService(repository, policy, storage, config);
 const createdTicketIds: string[] = [];
 let organizationId: string;
-let departmentId: string;
-let branchId: string;
 let actorId: string;
 let secondActorId: string;
 let teamId: string;
@@ -61,7 +59,6 @@ const caller = (
   sessionId: 'ticket-integration',
   roles: [],
   permissionKeys: permissions,
-  authorizedBranchIds: [branchId],
   organizationWide: true,
   authenticatedAt: new Date(0).toISOString(),
 });
@@ -70,12 +67,6 @@ describe('ticket management database contract', () => {
   beforeAll(async () => {
     const organization = await prisma.organization.findFirstOrThrow();
     organizationId = organization.id;
-    departmentId = (
-      await prisma.department.findFirstOrThrow({ where: { organizationId } })
-    ).id;
-    branchId = (
-      await prisma.branch.findFirstOrThrow({ where: { organizationId } })
-    ).id;
     const primaryAccount = await prisma.account.findFirstOrThrow({
       where: { status: 'ACTIVE' },
       orderBy: { createdAt: 'asc' },
@@ -99,7 +90,6 @@ describe('ticket management database contract', () => {
         passwordHash: 'ticket-integration-not-authenticatable',
         displayName: 'Ticket Integration Second Actor',
         normalizedDisplayName: 'ticket integration second actor fixture',
-        branchIds: [branchId],
         organizationWide: true,
         status: 'ACTIVE',
       },
@@ -153,8 +143,6 @@ describe('ticket management database contract', () => {
       description: 'تفاصيل اختبار تكامل التذاكر',
       status: 'backlog',
       priority: 'medium',
-      departmentId,
-      branchId,
       teamId,
       employeeId: actorId,
       tags: ['integration'],

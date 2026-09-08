@@ -848,6 +848,7 @@ model PipelineStage {
   position    Int
   isEntry     Boolean     @default(false)
   active      Boolean     @default(true)
+  version     Int         @default(1)
   leads       Lead[]
 
   @@unique([pipelineId, code])

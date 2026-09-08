@@ -9,4 +9,14 @@ export const pipelineNavigation: NavigationItem = {
   iconKey: "pipeline",
   route: "/lead-pipeline",
   permissionKey: pipelinePermissions.view as PermissionKey,
+  children: [
+    {
+      id: "pipeline-settings",
+      title: "إعدادات المسارات",
+      titleKey: "nav.pipeline.settings",
+      iconKey: "general",
+      route: "/pipelines",
+      permissionKey: pipelinePermissions.manage as PermissionKey,
+    },
+  ],
 }

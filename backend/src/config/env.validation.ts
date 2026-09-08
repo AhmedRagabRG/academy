@@ -34,13 +34,11 @@ class EnvironmentVariables {
   @IsString() META_GRAPH_VERSION = 'v25.0';
   @IsString() META_WHATSAPP_ACCESS_TOKEN = '';
   @IsString() META_WHATSAPP_PHONE_NUMBER_ID = '';
+  @IsString() META_WHATSAPP_BUSINESS_ACCOUNT_ID = '';
   @IsString() META_MESSENGER_PAGE_ACCESS_TOKEN = '';
   @IsString() META_MESSENGER_PAGE_ID = '';
   @IsString() META_INSTAGRAM_ACCESS_TOKEN = '';
   @IsString() META_INSTAGRAM_ACCOUNT_ID = '';
-  @IsString() META_APP_ID = '';
-  @IsString() META_OAUTH_REDIRECT_URI = '';
-  @IsString() CHANNEL_TOKEN_ENCRYPTION_KEY = '';
   @IsBooleanString() CAMPAIGN_DISPATCH_ENABLED = 'true';
   @IsInt() @Min(1000) CAMPAIGN_TICK_MS = 5000;
   @IsInt() @Min(1) CAMPAIGN_MAX_PER_TICK = 100;

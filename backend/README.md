@@ -67,11 +67,13 @@ profile/settings, structure, calendar, and configurable master values.
 
 ## Meta Inbox channels
 
-The Inbox accepts WhatsApp Cloud API and Facebook Page Messenger events at
-`GET|POST /api/v1/inbox/meta/webhook`. Configure `META_APP_SECRET`,
-`META_WEBHOOK_VERIFY_TOKEN`, `META_WHATSAPP_ACCESS_TOKEN`,
-`META_WHATSAPP_PHONE_NUMBER_ID`, `META_MESSENGER_PAGE_ACCESS_TOKEN`, and
-`META_MESSENGER_PAGE_ID`. Keep access tokens in the deployment secret manager.
+WhatsApp, Messenger, and Instagram configuration comes only from backend environment variables —
+there is no in-app OAuth or account-linking flow. The Inbox accepts WhatsApp Cloud API and Facebook
+Page Messenger events at `GET|POST /api/v1/inbox/meta/webhook`. Configure `META_APP_SECRET`,
+`META_WEBHOOK_VERIFY_TOKEN`, `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID`,
+`META_WHATSAPP_BUSINESS_ACCOUNT_ID` (required for WhatsApp template sync),
+`META_MESSENGER_PAGE_ACCESS_TOKEN`, `META_MESSENGER_PAGE_ID`, `META_INSTAGRAM_ACCESS_TOKEN`, and
+`META_INSTAGRAM_ACCOUNT_ID`. Keep access tokens in the deployment secret manager.
 
 Configure the same public HTTPS webhook URL in the Meta app for both products. Subscribe WhatsApp
 to message events and Messenger to page messaging events. The GET request performs Meta's webhook

@@ -16,9 +16,7 @@ const database = () => ({
     findUnique: jest.fn().mockResolvedValue({ label: 'ماسنجر' }),
   },
   inboxCustomer: {
-    upsert: jest
-      .fn()
-      .mockResolvedValue({ id: 'customer-id' }),
+    upsert: jest.fn().mockResolvedValue({ id: 'customer-id' }),
   },
   inboxConversation: {
     upsert: jest.fn().mockResolvedValue({ id: 'conversation-id' }),
@@ -27,14 +25,9 @@ const database = () => ({
 
 const channels = (route: Record<string, unknown> | null) => {
   const forInbound = jest.fn().mockResolvedValue(route);
-  const markInbound = jest.fn().mockResolvedValue(undefined);
   return {
     forInbound,
-    markInbound,
-    service: {
-      forInbound,
-      markInbound,
-    } as unknown as ChannelCredentialsService,
+    service: { forInbound } as unknown as ChannelCredentialsService,
   };
 };
 
@@ -44,11 +37,9 @@ const crm = () => {
 };
 
 /** The webhook publishes provider receipts; the tests only need a sink. */
-const emitter = () =>
-  ({ emit: jest.fn() }) as unknown as EventEmitter2;
+const emitter = () => ({ emit: jest.fn() }) as unknown as EventEmitter2;
 
 const messengerRoute = {
-  connectionId: 'connection-id',
   organizationId: 'organization-id',
   platformId: 'platform-id',
   platformCode: 'messenger',

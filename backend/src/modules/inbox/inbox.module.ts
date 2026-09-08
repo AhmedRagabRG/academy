@@ -2,11 +2,7 @@ import { Module } from '@nestjs/common';
 import { StorageModule } from '../../storage/storage.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { LeadPipelineModule } from '../lead-pipeline/lead-pipeline.module';
-import { ChannelController } from './channels/channel.controller';
 import { ChannelCredentialsService } from './channels/channel-credentials.service';
-import { ChannelCryptoService } from './channels/channel-crypto.service';
-import { ChannelLinkingStore } from './channels/channel-linking.store';
-import { ChannelService } from './channels/channel.service';
 import { MetaGraphClient } from './channels/meta-graph.client';
 import { InboxCrmLinkService } from './crm/inbox-crm-link.service';
 import { INBOX_DELIVERY_PORT } from './delivery/inbox-delivery.port';
@@ -23,9 +19,7 @@ import { MetaWebhookService } from './meta/meta-webhook.service';
 
 @Module({
   imports: [StorageModule, ContactsModule, LeadPipelineModule],
-  // ChannelController first: its `inbox/channels` path would otherwise be
-  // swallowed by InboxController's single-segment `inbox/:id` route.
-  controllers: [ChannelController, MetaWebhookController, InboxController],
+  controllers: [MetaWebhookController, InboxController],
   providers: [
     InboxPolicy,
     InboxRepository,
@@ -34,10 +28,7 @@ import { MetaWebhookService } from './meta/meta-webhook.service';
     InboxCrmLinkService,
     MetaWebhookService,
     MetaGraphClient,
-    ChannelCryptoService,
     ChannelCredentialsService,
-    ChannelLinkingStore,
-    ChannelService,
     LocalInboxDeliveryAdapter,
     MetaInboxDeliveryAdapter,
     ChannelInboxDeliveryAdapter,

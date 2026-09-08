@@ -1,7 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import type {
   AppConfig,
-  ChannelSecretsConfig,
   CookieConfig,
   CorsConfig,
   DatabaseConfig,
@@ -55,13 +54,13 @@ export const passwordPolicyConfig = registerAs(
   }),
 );
 export const metaConfig = registerAs('meta', (): MetaConfig => ({
-  appId: process.env.META_APP_ID ?? '',
   appSecret: process.env.META_APP_SECRET ?? '',
   verifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN ?? '',
   graphVersion: process.env.META_GRAPH_VERSION ?? 'v25.0',
-  redirectUri: process.env.META_OAUTH_REDIRECT_URI ?? '',
   whatsappAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN ?? '',
   whatsappPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID ?? '',
+  whatsappBusinessAccountId:
+    process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID ?? '',
   messengerPageAccessToken: process.env.META_MESSENGER_PAGE_ACCESS_TOKEN ?? '',
   messengerPageId: process.env.META_MESSENGER_PAGE_ID ?? '',
   instagramAccessToken: process.env.META_INSTAGRAM_ACCESS_TOKEN ?? '',
@@ -72,14 +71,6 @@ export const campaignsConfig = registerAs('campaigns', (): CampaignsConfig => ({
   tickMs: Number(process.env.CAMPAIGN_TICK_MS ?? 5000),
   maxPerTick: Number(process.env.CAMPAIGN_MAX_PER_TICK ?? 100),
 }));
-export const channelSecretsConfig = registerAs(
-  'channelSecrets',
-  (): ChannelSecretsConfig => ({
-    encryptionKey:
-      process.env.CHANNEL_TOKEN_ENCRYPTION_KEY ??
-      process.env.JWT_ACCESS_SECRET!,
-  }),
-);
 export const configuration = [
   appConfig,
   databaseConfig,
@@ -92,5 +83,4 @@ export const configuration = [
   passwordPolicyConfig,
   metaConfig,
   campaignsConfig,
-  channelSecretsConfig,
 ];

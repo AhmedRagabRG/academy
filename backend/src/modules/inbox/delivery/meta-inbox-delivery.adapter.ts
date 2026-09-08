@@ -35,7 +35,7 @@ export class MetaInboxDeliveryAdapter implements InboxDeliveryPort {
     if (!resolved)
       throw new DomainException(
         'channel-not-configured',
-        'قناة Meta غير مرتبطة بعد. اربط الحساب من إعدادات القنوات.',
+        'قناة Meta غير مهيأة على الخادم. أضف بيانات الاعتماد في متغيرات البيئة.',
         503,
       );
     return resolved;

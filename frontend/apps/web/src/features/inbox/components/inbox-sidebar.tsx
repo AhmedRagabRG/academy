@@ -1,8 +1,5 @@
-import Link from "next/link"
 import { Button } from "@workspace/ui/components/button"
-import { usePermission } from "@/shared/hooks/use-permission"
 import { savedViews } from "../config/inbox-config"
-import { inboxChannelsNavigation } from "../config/navigation"
 import type { SavedViewKey } from "../types/common"
 
 export function InboxSidebar({
@@ -12,8 +9,6 @@ export function InboxSidebar({
   active: SavedViewKey
   onChange: (view: SavedViewKey) => void
 }) {
-  const canViewChannels = usePermission(inboxChannelsNavigation.permissionKey!)
-
   return (
     <nav aria-label="طرق عرض صندوق الوارد" className="space-y-3">
       <div className="space-y-1">
@@ -34,17 +29,6 @@ export function InboxSidebar({
           )
         })}
       </div>
-      {canViewChannels && (
-        <div className="ms-3 space-y-1 border-s ps-2">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            render={<Link href={inboxChannelsNavigation.route!} />}
-          >
-            {inboxChannelsNavigation.title}
-          </Button>
-        </div>
-      )}
     </nav>
   )
 }

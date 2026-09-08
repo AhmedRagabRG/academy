@@ -30,8 +30,6 @@ export const mockRole: Role = {
     "inbox.archive",
     "inbox.delete",
     "inbox.restore",
-    "inbox.channels.view",
-    "inbox.channels.manage",
     "contacts.view",
     "contacts.create",
     "contacts.update",

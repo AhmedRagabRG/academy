@@ -7,8 +7,10 @@ import {
   type MetaMessageStatusEvent,
 } from '../../../core/events/meta-message-status.event';
 import { PrismaService } from '../../../database/prisma.service';
-import { ChannelCredentialsService } from '../channels/channel-credentials.service';
-import type { ChannelProviderCode } from '../channels/dto/channel.dto';
+import {
+  ChannelCredentialsService,
+  type ChannelProviderCode,
+} from '../channels/channel-credentials.service';
 import { InboxCrmLinkService } from '../crm/inbox-crm-link.service';
 import { InboxRealtimeService } from '../inbox-realtime.service';
 
@@ -337,7 +339,6 @@ export class MetaWebhookService {
         messages: { create: message },
       },
     });
-    await this.channels.markInbound(route.connectionId);
     const platform = await this.db.inboxPlatform.findUnique({
       where: { id: route.platformId },
       select: { label: true },

@@ -71,7 +71,7 @@ export class WhatsappTemplateSender {
     if (!resolved)
       throw new DomainException(
         'channel-not-configured',
-        'قناة واتساب غير مرتبطة بعد. اربط رقم الأعمال من إعدادات القنوات.',
+        'قناة واتساب غير مهيأة على الخادم. أضف بيانات الاعتماد في متغيرات البيئة.',
         503,
       );
     return resolved;

@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query"
 import {
   ArrowRight,
   Check,
-  ChevronLeft,
   FileSpreadsheet,
   Link2Off,
   LoaderCircle,
@@ -445,20 +444,13 @@ function CampaignBuilderForm({
       {!lookupData.channel.linked && (
         <div
           role="alert"
-          className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+          className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
         >
           <p className="flex items-center gap-2 text-sm">
             <Link2Off className="size-4" aria-hidden />
-            اربط رقم واتساب للأعمال قبل إطلاق الحملة.
+            رقم واتساب للأعمال غير مهيأ على الخادم. تواصل مع فريق التقنية لإضافة
+            بيانات الاعتماد قبل إطلاق الحملة.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            render={<Link href="/inbox/channels" />}
-          >
-            إدارة القنوات
-            <ChevronLeft aria-hidden />
-          </Button>
         </div>
       )}
 

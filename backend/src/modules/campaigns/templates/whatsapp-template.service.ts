@@ -108,14 +108,14 @@ export class WhatsappTemplateService {
     if (!channel)
       throw new DomainException(
         'channel-not-configured',
-        'قناة واتساب غير مرتبطة. اربط رقم الأعمال من إعدادات القنوات.',
+        'قناة واتساب غير مهيأة على الخادم. أضف بيانات الاعتماد في متغيرات البيئة.',
         503,
       );
     const wabaId = channel.businessAccountId;
     if (!wabaId)
       throw new DomainException(
         'waba-unknown',
-        'لم يتم التعرف على حساب واتساب للأعمال. أعد ربط الرقم عبر تسجيل الدخول بحساب Meta.',
+        'لم يتم التعرف على حساب واتساب للأعمال. تحقّق من متغيرات بيئة واتساب على الخادم.',
         422,
       );
 
@@ -129,7 +129,6 @@ export class WhatsappTemplateService {
       const parsed = parseComponents(asset.components);
       const data = {
         organizationId,
-        connectionId: channel.connectionId ?? null,
         wabaId,
         providerTemplateId: asset.id,
         name: asset.name,

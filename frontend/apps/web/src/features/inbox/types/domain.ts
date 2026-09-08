@@ -43,7 +43,8 @@ export interface Attachment {
   id: string
   kind: AttachmentKind
   fileName: string
-  sizeBytes: number
+  /** Unknown for inbound provider attachments the server never measured. */
+  sizeBytes?: number
   url?: string
   durationSeconds?: number
   placeholder?: boolean

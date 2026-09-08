@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 import type {
   ContactFieldKind,
   ContactSource,
-  Prisma,
 } from '../../../prisma/generated/client';
 import {
   DomainException,
@@ -834,18 +834,41 @@ export class ContactService {
             : { channelHandle: intake.channelHandle ?? null }),
         },
       });
-    return this.repo.db.contact.create({
-      data: {
-        organizationId: intake.organizationId,
-        name: intake.name,
-        normalizedName: normalizeName(intake.name),
-        phone: intake.phone,
-        normalizedPhone,
-        source: SOURCE_DB[intake.source],
-        channelHandle: intake.channelHandle ?? null,
-        ownerName: 'النظام',
-        lastActivityAt: intake.occurredAt,
-      },
-    });
+    try {
+      return await this.repo.db.contact.create({
+        data: {
+          organizationId: intake.organizationId,
+          name: intake.name,
+          normalizedName: normalizeName(intake.name),
+          phone: intake.phone,
+          normalizedPhone,
+          source: SOURCE_DB[intake.source],
+          channelHandle: intake.channelHandle ?? null,
+          ownerName: 'النظام',
+          lastActivityAt: intake.occurredAt,
+        },
+      });
+    } catch (error) {
+      // Two inbound messages for a brand-new identity can be processed
+      // concurrently; the loser of the unique-constraint race reuses the
+      // contact the winner just created instead of failing the webhook.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        Array.isArray(
+          (error.meta as { target?: unknown } | undefined)?.target,
+        ) &&
+        (error.meta as { target: unknown[] }).target.includes('normalizedPhone')
+      )
+        return this.repo.db.contact.findUniqueOrThrow({
+          where: {
+            organizationId_normalizedPhone: {
+              organizationId: intake.organizationId,
+              normalizedPhone,
+            },
+          },
+        });
+      throw error;
+    }
   }
 }

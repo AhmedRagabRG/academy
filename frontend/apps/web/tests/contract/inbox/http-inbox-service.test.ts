@@ -60,6 +60,12 @@ const apiConversation = {
           fileName: "proof.pdf",
           sizeBytes: 10,
         },
+        {
+          id: "media-1",
+          kind: "image",
+          fileName: "photo.jpg",
+          placeholder: true,
+        },
       ],
     },
   ],
@@ -159,10 +165,16 @@ describe("HTTP InboxService transport contract", () => {
       sizeBytes: 1,
     })
     const signal = new AbortController().signal
-    expect(
-      (await httpInboxService.detail(conversationId, signal)).messages[0]!
-        .delivery
-    ).toBe("queued")
+    const detail = await httpInboxService.detail(conversationId, signal)
+    expect(detail.messages[0]!.delivery).toBe("queued")
+    // A provider-only attachment (no locally stored bytes) must round-trip
+    // as preview-only with an undefined size, never a fabricated number.
+    expect(detail.messages[0]!.attachments[1]).toMatchObject({
+      id: "media-1",
+      kind: "image",
+      placeholder: true,
+    })
+    expect(detail.messages[0]!.attachments[1]!.sizeBytes).toBeUndefined()
     expect((await httpInboxService.dashboard(query, signal)).closedToday).toBe(
       5
     )

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 import type {
   ContactSource,
   LeadPriority,
-  Prisma,
 } from '../../../prisma/generated/client';
 import {
   DomainException,
@@ -506,41 +506,63 @@ export class LeadService {
       include: { stages: { orderBy: { position: 'asc' } } },
     });
     if (!pipeline) return null;
-    const existing = await this.db.lead.findFirst({
-      where: {
-        pipelineId: pipeline.id,
-        contactId: intake.contactId,
-        deletedAt: null,
-        outcome: 'OPEN',
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (existing) return existing;
     const entry =
       pipeline.stages.find((stage) => stage.isEntry) ?? pipeline.stages[0];
     if (!entry) return null;
     const currency = await this.currency(intake.organizationId);
-    return this.db.lead.create({
-      data: {
-        organizationId: intake.organizationId,
-        pipelineId: pipeline.id,
-        stageId: entry.id,
-        contactId: intake.contactId,
-        priority: 'MEDIUM',
-        currency,
-        precision: 2,
-        program: intake.program ?? 'استفسار جديد من صندوق الوارد',
-        createdAt: intake.occurredAt,
-        activities: {
-          create: {
-            kind: 'CREATED',
-            label: 'أُنشئت الفرصة تلقائيًا من أول تواصل',
-            actorName: 'النظام',
-            occurredAt: intake.occurredAt,
+    // Serializable isolation turns two simultaneous "none found, create"
+    // paths into one winner plus a retry. The retry then observes and reuses
+    // the winner without imposing a new global uniqueness rule on manually
+    // managed pipeline history.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.db.$transaction(
+          async (tx) => {
+            const existing = await tx.lead.findFirst({
+              where: {
+                pipelineId: pipeline.id,
+                contactId: intake.contactId,
+                deletedAt: null,
+                outcome: 'OPEN',
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (existing) return existing;
+            return tx.lead.create({
+              data: {
+                organizationId: intake.organizationId,
+                pipelineId: pipeline.id,
+                stageId: entry.id,
+                contactId: intake.contactId,
+                priority: 'MEDIUM',
+                currency,
+                precision: 2,
+                program: intake.program ?? 'استفسار جديد من صندوق الوارد',
+                createdAt: intake.occurredAt,
+                activities: {
+                  create: {
+                    kind: 'CREATED',
+                    label: 'أُنشئت الفرصة تلقائيًا من أول تواصل',
+                    actorName: 'النظام',
+                    occurredAt: intake.occurredAt,
+                  },
+                },
+              },
+            });
           },
-        },
-      },
-    });
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (
+          attempt === 0 &&
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2034'
+        )
+          continue;
+        throw error;
+      }
+    }
+    throw new Error('Unreachable lead intake retry state');
   }
 
   async openLeadForContact(contactId: string) {

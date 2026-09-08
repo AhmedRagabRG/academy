@@ -32,8 +32,9 @@ export interface ApiAttachment {
   id: string
   kind: Attachment["kind"]
   fileName: string
-  sizeBytes: number
+  sizeBytes?: number
   durationSeconds?: number
+  placeholder?: boolean
 }
 
 interface ApiNamedLookup {

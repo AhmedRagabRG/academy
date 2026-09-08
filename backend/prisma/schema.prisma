@@ -525,6 +525,11 @@ model InboxMessage {
   @@index([conversationId, sentAt, id])
 }
 
+/// `storageKey`/`sizeBytes`/`ownerAccountId` are set for attachments the
+/// server stored (agent replies). Inbound attachments from a provider
+/// webhook carry only the real provider metadata — no bytes are fabricated,
+/// so those columns stay null until a deployment adds authenticated media
+/// retrieval from Meta.
 model InboxMessageAttachment {
   id              String       @id @default(uuid()) @db.Uuid
   messageId       String       @db.Uuid
@@ -532,9 +537,9 @@ model InboxMessageAttachment {
   sourceId        String
   kind            String
   fileName        String
-  sizeBytes       Int
-  storageKey      String
-  ownerAccountId  String       @db.Uuid
+  sizeBytes       Int?
+  storageKey      String?
+  ownerAccountId  String?      @db.Uuid
   durationSeconds Int?
 
   @@index([messageId])

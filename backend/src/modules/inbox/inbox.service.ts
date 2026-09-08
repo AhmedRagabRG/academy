@@ -133,8 +133,12 @@ export class InboxService {
           id: a.sourceId,
           kind: a.kind,
           fileName: a.fileName,
-          sizeBytes: a.sizeBytes,
+          sizeBytes: a.sizeBytes ?? undefined,
           durationSeconds: a.durationSeconds ?? undefined,
+          // Inbound provider attachments have no locally stored bytes: the
+          // server preserves the real media reference without fabricating a
+          // downloadable file, so the UI marks them preview-only.
+          placeholder: a.storageKey === null,
         })),
       })),
       notes: row.notes.map((n) => ({

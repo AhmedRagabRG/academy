@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { Prisma } from '../../../../prisma/generated/client';
 import {
   META_MESSAGE_STATUS_EVENT,
   type MetaMessageStatusEvent,
@@ -14,6 +15,12 @@ import {
 import { InboxCrmLinkService } from '../crm/inbox-crm-link.service';
 import { InboxRealtimeService } from '../inbox-realtime.service';
 
+interface IncomingAttachment {
+  sourceId: string;
+  kind: string;
+  fileName: string;
+}
+
 interface IncomingMessage {
   channel: ChannelProviderCode;
   accountId: string;
@@ -22,6 +29,7 @@ interface IncomingMessage {
   senderName: string;
   body: string;
   sentAt: Date;
+  attachments: IncomingAttachment[];
 }
 
 interface IncomingStatus {
@@ -42,6 +50,48 @@ const DELIVERY_STATES: Record<
   delivered: 'DELIVERED',
   read: 'READ',
   failed: 'FAILED',
+};
+
+/**
+ * Provider receipts can arrive out of order (retries, multi-region delivery).
+ * A delivery state already at or past the incoming one must never be
+ * overwritten, so READ/DELIVERED can't regress back to an earlier step.
+ */
+const REGRESSION_GUARD: Record<
+  'SENT' | 'DELIVERED' | 'READ' | 'FAILED',
+  Array<'SENT' | 'DELIVERED' | 'READ' | 'FAILED'>
+> = {
+  SENT: ['SENT', 'DELIVERED', 'READ', 'FAILED'],
+  // A later delivery receipt is stronger evidence than an earlier failure.
+  DELIVERED: ['DELIVERED', 'READ'],
+  READ: ['READ'],
+  FAILED: ['DELIVERED', 'READ'],
+};
+
+const WHATSAPP_MEDIA_KINDS: Record<string, string> = {
+  image: 'image',
+  video: 'video',
+  audio: 'voice',
+  document: 'document',
+  sticker: 'image',
+};
+const WHATSAPP_MEDIA_FILE_NAMES: Record<string, string> = {
+  image: 'photo.jpg',
+  video: 'video.mp4',
+  audio: 'voice-message.ogg',
+  sticker: 'sticker.webp',
+};
+const MESSAGING_ATTACHMENT_KINDS: Record<string, string> = {
+  image: 'image',
+  video: 'video',
+  audio: 'voice',
+  file: 'document',
+};
+const MESSAGING_ATTACHMENT_FILE_NAMES: Record<string, string> = {
+  image: 'photo.jpg',
+  video: 'video.mp4',
+  audio: 'voice-message.mp3',
+  file: 'file',
 };
 
 @Injectable()
@@ -106,15 +156,34 @@ export class MetaWebhookService {
         const contact = record(array(value.contacts)[0]);
         for (const source of array(value.messages)) {
           const message = record(source);
+          const type = string(message.type);
+          const media = WHATSAPP_MEDIA_KINDS[type]
+            ? record(message[type])
+            : null;
+          const mediaId = media ? string(media.id) : '';
           const body =
             string(record(message.text).body) ||
+            (media ? string(media.caption) : '') ||
             string(record(message.button).text) ||
             string(record(record(message.interactive).button_reply).title) ||
             string(record(record(message.interactive).list_reply).title) ||
-            `[${string(message.type) || 'message'}]`;
+            `[${type || 'message'}]`;
           const providerMessageId = string(message.id);
           const participantId = string(message.from);
           if (!accountId || !providerMessageId || !participantId) continue;
+          const attachments: IncomingAttachment[] =
+            media && mediaId
+              ? [
+                  {
+                    sourceId: mediaId,
+                    kind: WHATSAPP_MEDIA_KINDS[type],
+                    fileName:
+                      type === 'document'
+                        ? string(media.filename) || 'document'
+                        : WHATSAPP_MEDIA_FILE_NAMES[type],
+                  },
+                ]
+              : [];
           result.push({
             channel: 'whatsapp',
             accountId,
@@ -123,6 +192,7 @@ export class MetaWebhookService {
             senderName: string(record(contact.profile).name) || participantId,
             body,
             sentAt: timestamp(message.timestamp),
+            attachments,
           });
         }
       }
@@ -144,11 +214,33 @@ export class MetaWebhookService {
         const providerMessageId = string(message.mid);
         const participantId = string(record(event.sender).id);
         if (!accountId || !providerMessageId || !participantId) continue;
-        const attachments = array(message.attachments);
+        const rawAttachments = array(message.attachments);
+        const attachments: IncomingAttachment[] = rawAttachments
+          .map((raw) => record(raw))
+          .map((raw) => ({
+            type: string(raw.type),
+            url: string(record(raw.payload).url),
+            name:
+              string(raw.name) || string(record(raw.payload).name) || undefined,
+          }))
+          .filter(
+            (parsed) => MESSAGING_ATTACHMENT_KINDS[parsed.type] && parsed.url,
+          )
+          .map((parsed) => ({
+            // Messenger supplies a signed CDN URL rather than a stable media
+            // id. It is retained as provider metadata only; the UI marks the
+            // attachment preview-only and never presents it as durable bytes.
+            sourceId: parsed.url,
+            kind: MESSAGING_ATTACHMENT_KINDS[parsed.type],
+            fileName:
+              parsed.type === 'file' && parsed.name
+                ? parsed.name
+                : MESSAGING_ATTACHMENT_FILE_NAMES[parsed.type],
+          }));
         const body =
           string(message.text) ||
-          (attachments.length
-            ? `[${string(record(attachments[0]).type) || 'attachment'}]`
+          (rawAttachments.length
+            ? `[${string(record(rawAttachments[0]).type) || 'attachment'}]`
             : '[attachment]');
         result.push({
           channel,
@@ -161,6 +253,7 @@ export class MetaWebhookService {
               : `Messenger ${participantId.slice(-6)}`,
           body,
           sentAt: timestamp(event.timestamp),
+          attachments,
         });
       }
     }
@@ -232,7 +325,10 @@ export class MetaWebhookService {
     if (!delivery) return;
     if (status.id) {
       await this.db.inboxMessage.updateMany({
-        where: { providerMessageId: status.id },
+        where: {
+          providerMessageId: status.id,
+          delivery: { notIn: REGRESSION_GUARD[delivery] },
+        },
         data: { delivery },
       });
       // Published for whoever owns the message; a receipt for a message this
@@ -250,6 +346,7 @@ export class MetaWebhookService {
         where: {
           direction: 'OUTGOING',
           sentAt: { lte: status.watermark },
+          delivery: { notIn: REGRESSION_GUARD.READ },
           conversation: {
             providerThreadId: status.participantId,
             platform: { code: status.channel },
@@ -265,6 +362,22 @@ export class MetaWebhookService {
     return `${input.channel}:${input.participantId}`;
   }
 
+  /**
+   * Meta redelivers webhooks that don't ack fast enough or that time out on
+   * its side, so the same payload can reach this endpoint twice — sometimes
+   * concurrently. `providerMessageId` is the idempotency key; the customer
+   * and conversation upserts plus the message insert run in one transaction
+   * so a duplicate delivery either fully lands or is fully rolled back by the
+   * unique-constraint violation on `providerMessageId`, never half-applied.
+   *
+   * A duplicate can also mean the *first* delivery's transaction committed
+   * but the CRM link after it (outside the transaction) never ran — a crash,
+   * a transient error, or Meta simply retrying before the link finished. The
+   * retry must not skip the conversation/customer write again (that's what
+   * the transaction already guarantees), but it must still recover the
+   * customer the winning write created and re-run the idempotent CRM link so
+   * that failure never leaves a contact permanently unlinked.
+   */
   private async persist(input: IncomingMessage): Promise<void> {
     const route = await this.channels.forInbound(
       input.channel,
@@ -276,33 +389,8 @@ export class MetaWebhookService {
       );
       return;
     }
-    if (
-      await this.db.inboxMessage.findUnique({
-        where: { providerMessageId: input.providerMessageId },
-        select: { id: true },
-      })
-    )
-      return;
     const normalizedPhone = this.threadIdentity(input);
     const now = input.sentAt;
-    const customer = await this.db.inboxCustomer.upsert({
-      where: {
-        organizationId_normalizedPhone: {
-          organizationId: route.organizationId,
-          normalizedPhone,
-        },
-      },
-      update: { name: input.senderName, lastActivityAt: now },
-      create: {
-        organizationId: route.organizationId,
-        name: input.senderName,
-        normalizedName: input.senderName.toLocaleLowerCase(),
-        phone: input.participantId,
-        normalizedPhone,
-        firstContactAt: now,
-        lastActivityAt: now,
-      },
-    });
     const message = {
       direction: 'INCOMING' as const,
       senderName: input.senderName,
@@ -310,42 +398,109 @@ export class MetaWebhookService {
       sentAt: now,
       delivery: 'RECEIVED' as const,
       providerMessageId: input.providerMessageId,
+      ...(input.attachments.length
+        ? {
+            attachments: {
+              create: input.attachments.map((attachment) => ({
+                sourceId: attachment.sourceId,
+                kind: attachment.kind,
+                fileName: attachment.fileName,
+              })),
+            },
+          }
+        : {}),
     };
-    await this.db.inboxConversation.upsert({
-      where: {
-        platformId_providerThreadId: {
-          platformId: route.platformId,
-          providerThreadId: input.participantId,
+    let customerId: string;
+    try {
+      customerId = await this.db.$transaction(async (tx) => {
+        const customer = await tx.inboxCustomer.upsert({
+          where: {
+            organizationId_normalizedPhone: {
+              organizationId: route.organizationId,
+              normalizedPhone,
+            },
+          },
+          update: { name: input.senderName, lastActivityAt: now },
+          create: {
+            organizationId: route.organizationId,
+            name: input.senderName,
+            normalizedName: input.senderName.toLocaleLowerCase(),
+            phone: input.participantId,
+            normalizedPhone,
+            firstContactAt: now,
+            lastActivityAt: now,
+          },
+        });
+        await tx.inboxConversation.upsert({
+          where: {
+            platformId_providerThreadId: {
+              platformId: route.platformId,
+              providerThreadId: input.participantId,
+            },
+          },
+          update: {
+            status: 'OPEN',
+            deletedAt: null,
+            lastMessage: input.body,
+            lastActivityAt: now,
+            unreadCount: { increment: 1 },
+            version: { increment: 1 },
+            messages: { create: message },
+          },
+          create: {
+            organizationId: route.organizationId,
+            customerId: customer.id,
+            platformId: route.platformId,
+            providerThreadId: input.participantId,
+            status: 'OPEN',
+            unreadCount: 1,
+            lastMessage: input.body,
+            lastActivityAt: now,
+            messages: { create: message },
+          },
+        });
+        return customer.id;
+      });
+    } catch (error) {
+      if (!isDuplicateProviderMessage(error)) throw error;
+      // A unique-conflict only proves that this provider id already exists.
+      // Recover through that exact message and verify its route/thread before
+      // repairing CRM; looking up by the incoming identity alone could attach
+      // the wrong customer if a provider ever violated global-id uniqueness.
+      const existingMessage = await this.db.inboxMessage.findUnique({
+        where: { providerMessageId: input.providerMessageId },
+        select: {
+          conversation: {
+            select: {
+              customerId: true,
+              organizationId: true,
+              platformId: true,
+              providerThreadId: true,
+            },
+          },
         },
-      },
-      update: {
-        status: 'OPEN',
-        deletedAt: null,
-        lastMessage: input.body,
-        lastActivityAt: now,
-        unreadCount: { increment: 1 },
-        version: { increment: 1 },
-        messages: { create: message },
-      },
-      create: {
-        organizationId: route.organizationId,
-        customerId: customer.id,
-        platformId: route.platformId,
-        providerThreadId: input.participantId,
-        status: 'OPEN',
-        unreadCount: 1,
-        lastMessage: input.body,
-        lastActivityAt: now,
-        messages: { create: message },
-      },
-    });
+      });
+      const existingConversation = existingMessage?.conversation;
+      if (
+        !existingConversation ||
+        existingConversation.organizationId !== route.organizationId ||
+        existingConversation.platformId !== route.platformId ||
+        existingConversation.providerThreadId !== input.participantId
+      ) {
+        this.logger.warn(
+          `Duplicate webhook ${input.providerMessageId} could not be correlated to ${input.channel}:${input.accountId}:${input.participantId}; CRM repair skipped`,
+        );
+        return;
+      }
+      customerId = existingConversation.customerId;
+    }
     const platform = await this.db.inboxPlatform.findUnique({
       where: { id: route.platformId },
       select: { label: true },
     });
     await this.crm.link({
       organizationId: route.organizationId,
-      customerId: customer.id,
+      customerId,
       identity: normalizedPhone,
       name: input.senderName,
       phone: input.participantId,
@@ -355,6 +510,16 @@ export class MetaWebhookService {
     });
   }
 }
+
+const isDuplicateProviderMessage = (error: unknown): boolean => {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== 'P2002'
+  )
+    return false;
+  const target = (error.meta as { target?: unknown } | undefined)?.target;
+  return Array.isArray(target) && target.includes('providerMessageId');
+};
 
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {};

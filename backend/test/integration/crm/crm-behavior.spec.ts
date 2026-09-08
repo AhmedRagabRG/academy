@@ -352,6 +352,37 @@ describe('CRM persisted behavioral contract', () => {
     expect(second!.id).toBe(first!.id);
   });
 
+  it('creates only one open lead for simultaneous first channel messages', async () => {
+    const contact = await track({ name: 'تواصل متزامن عبر القناة' });
+    const occurredAt = new Date();
+    const [first, second] = await Promise.all([
+      leads.ensureFromChannel({
+        organizationId,
+        contactId: contact.id,
+        occurredAt,
+      }),
+      leads.ensureFromChannel({
+        organizationId,
+        contactId: contact.id,
+        occurredAt,
+      }),
+    ]);
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(second!.id).toBe(first!.id);
+    ownedLeadIds.push(first!.id);
+    await expect(
+      prisma.lead.count({
+        where: {
+          pipelineId,
+          contactId: contact.id,
+          deletedAt: null,
+          outcome: 'OPEN',
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
   it('groups leads onto the board columns the pipeline defines', async () => {
     const board = await leads.board(
       caller(undefined, { organizationWide: true }),

@@ -174,6 +174,13 @@ export function useContactsWorkspace(initialContactId?: string) {
     onSuccess: refreshLookups,
   })
 
+  const deleteGroup = useMutation({
+    mutationFn: (groupId: string) => contactsService.deleteGroup(groupId),
+    onSuccess: async () => {
+      await Promise.all([refreshLookups(), refreshList()])
+    },
+  })
+
   const createCustomField = useMutation({
     mutationFn: ({ label, type }: { label: string; type: CustomFieldType }) =>
       contactsService.createCustomField(label, type),
@@ -236,6 +243,7 @@ export function useContactsWorkspace(initialContactId?: string) {
       setCustomValue.mutateAsync({ id, fieldId, value }),
     createGroup: (name: string, description: string) =>
       createGroup.mutateAsync({ name, description }),
+    deleteGroup: (groupId: string) => deleteGroup.mutateAsync(groupId),
     toggleGroup: (id: string, groupId: string) =>
       toggleGroup.mutateAsync({ id, groupId }),
     exportCsv: () => contactsService.exportCsv(listQuery),

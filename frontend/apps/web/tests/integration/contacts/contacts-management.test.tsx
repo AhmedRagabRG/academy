@@ -81,6 +81,98 @@ describe("Contacts CRM management", () => {
     expect(screen.getByText("2 أعضاء")).toBeInTheDocument()
   })
 
+  it("deletes a group after explicit confirmation without deleting its contacts", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("tab", { name: /المجموعات/ })
+    await user.click(screen.getByRole("tab", { name: /المجموعات/ }))
+
+    expect(
+      screen.getByRole("heading", { name: "فرص مهتمة" })
+    ).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole("button", { name: "حذف مجموعة فرص مهتمة" })
+    )
+    expect(screen.getByText('حذف مجموعة "فرص مهتمة"؟')).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "حذف" }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "فرص مهتمة" })
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      screen.getByRole("heading", { name: "أولياء الأمور" })
+    ).toBeInTheDocument()
+    expect(feedbackSpies.success).toHaveBeenCalledWith("تم حذف مجموعة فرص مهتمة")
+
+    await user.click(screen.getByRole("tab", { name: /جهات الاتصال/ }))
+    const panel = await screen.findByRole("complementary", {
+      name: "تفاصيل مريم خالد",
+    })
+    expect(within(panel).getByText("شركاء الشركات")).toBeInTheDocument()
+    expect(within(panel).queryByText("فرص مهتمة")).not.toBeInTheDocument()
+  })
+
+  it("keeps the group when the deletion is cancelled", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("tab", { name: /المجموعات/ })
+    await user.click(screen.getByRole("tab", { name: /المجموعات/ }))
+
+    await user.click(
+      screen.getByRole("button", { name: "حذف مجموعة فرص مهتمة" })
+    )
+    await user.click(screen.getByRole("button", { name: "إلغاء" }))
+
+    expect(
+      screen.queryByText('حذف مجموعة "فرص مهتمة"؟')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { name: "فرص مهتمة" })
+    ).toBeInTheDocument()
+    expect(feedbackSpies.success).not.toHaveBeenCalled()
+  })
+
+  it("does not send a second request while a group deletion is already pending", async () => {
+    const user = userEvent.setup()
+    let releaseDelete: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      releaseDelete = resolve
+    })
+    const originalDeleteGroup = mockContactsService.deleteGroup
+    const spy = vi
+      .spyOn(mockContactsService, "deleteGroup")
+      .mockImplementation(async (groupId) => {
+        await gate
+        return originalDeleteGroup(groupId)
+      })
+    renderScreen()
+    await screen.findByRole("tab", { name: /المجموعات/ })
+    await user.click(screen.getByRole("tab", { name: /المجموعات/ }))
+
+    await user.click(
+      screen.getByRole("button", { name: "حذف مجموعة فرص مهتمة" })
+    )
+    const confirmButton = screen.getByRole("button", { name: "حذف" })
+    await user.click(confirmButton)
+
+    expect(confirmButton).toBeDisabled()
+    await user.click(confirmButton)
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    releaseDelete()
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "فرص مهتمة" })
+      ).not.toBeInTheDocument()
+    )
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
   it("refuses a second contact on a phone number already in the book", async () => {
     const existing = (
       await mockContactsService.list({

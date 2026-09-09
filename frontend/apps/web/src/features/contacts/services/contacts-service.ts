@@ -48,6 +48,7 @@ export interface ContactsService {
   toggleGroup(id: string, groupId: string): Promise<Contact>
   setCustomValue(id: string, fieldId: string, value: string): Promise<Contact>
   createGroup(name: string, description: string): Promise<ContactGroup>
+  deleteGroup(groupId: string): Promise<void>
   createCustomField(
     label: string,
     type: CustomFieldType

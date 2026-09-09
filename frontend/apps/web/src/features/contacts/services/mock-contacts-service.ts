@@ -49,6 +49,12 @@ const find = (id: string): Contact => {
   return contact
 }
 
+const findGroup = (id: string): ContactGroup => {
+  const group = state.groups.find((item) => item.id === id)
+  if (!group) throw new ContactsError("NOT_FOUND", "المجموعة غير موجودة")
+  return group
+}
+
 const touch = (id: string, apply: (contact: Contact) => Contact): Contact => {
   const next = apply(find(id))
   state.contacts = state.contacts.map((item) => (item.id === id ? next : item))
@@ -284,6 +290,21 @@ export const mockContactsService: ContactsService = {
     }
     state.groups = [...state.groups, group]
     return Promise.resolve(clone(group))
+  },
+
+  /** Mirrors the API deleting the group's membership rows, not the contacts. */
+  deleteGroup(groupId) {
+    findGroup(groupId)
+    state.groups = state.groups.filter((group) => group.id !== groupId)
+    state.contacts = state.contacts.map((contact) =>
+      contact.groupIds.includes(groupId)
+        ? {
+            ...contact,
+            groupIds: contact.groupIds.filter((id) => id !== groupId),
+          }
+        : contact
+    )
+    return Promise.resolve()
   },
 
   createCustomField(label, type: CustomFieldType) {

@@ -268,6 +268,20 @@ export function ContactsScreen({
               feedback.success("تم إنشاء مجموعة الاتصال")
               return group.id
             }}
+            onDelete={async (groupId) => {
+              const name = workspace.groups.find(
+                (group) => group.id === groupId
+              )?.name
+              try {
+                await workspace.deleteGroup(groupId)
+                feedback.success(
+                  name ? `تم حذف مجموعة ${name}` : "تم حذف المجموعة"
+                )
+              } catch (error) {
+                feedback.error((error as Error).message)
+                throw error
+              }
+            }}
             onToggleMember={workspace.toggleGroup}
           />
         ) : (

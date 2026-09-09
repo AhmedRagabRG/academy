@@ -208,6 +208,12 @@ export const httpContactsService: ContactsService = {
     })
   },
 
+  async deleteGroup(groupId) {
+    return guard(async () => {
+      await httpClient.delete<void>(`/contacts/groups/${groupId}`)
+    })
+  },
+
   async createCustomField(label, type: CustomFieldType) {
     return guard(async () => {
       const field = await httpClient.post<{

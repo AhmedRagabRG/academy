@@ -1,7 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { FolderPlus, Search, UserPlus, UsersRound, X } from "lucide-react"
+import {
+  FolderPlus,
+  Search,
+  Trash2,
+  UserPlus,
+  UsersRound,
+  X,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { cn } from "@workspace/ui/lib/utils"
@@ -12,12 +19,14 @@ export function ContactGroups({
   contacts,
   groups,
   onCreate,
+  onDelete,
   onToggleMember,
   allowed,
 }: {
   contacts: Contact[]
   groups: ContactGroup[]
   onCreate: (name: string, description: string) => Promise<string>
+  onDelete: (groupId: string) => Promise<void>
   onToggleMember: (contactId: string, groupId: string) => void
   allowed: boolean
 }) {
@@ -27,7 +36,26 @@ export function ContactGroups({
   const [description, setDescription] = useState("")
   const [managingMembers, setManagingMembers] = useState(false)
   const [memberQuery, setMemberQuery] = useState("")
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const selected = groups.find((group) => group.id === selectedId)
+
+  const handleDeleteGroup = async () => {
+    if (!selected || deleting) return
+    setDeleting(true)
+    try {
+      await onDelete(selected.id)
+      const remaining = groups.filter((group) => group.id !== selected.id)
+      setSelectedId(remaining[0]?.id ?? null)
+      setManagingMembers(false)
+      setMemberQuery("")
+      setConfirmingDelete(false)
+    } catch {
+      // The caller already surfaced a toast; keep the confirmation open for retry.
+    } finally {
+      setDeleting(false)
+    }
+  }
   const members = useMemo(
     () =>
       contacts.filter((contact) => contact.groupIds.includes(selectedId ?? "")),
@@ -114,6 +142,7 @@ export function ContactGroups({
                   setSelectedId(group.id)
                   setManagingMembers(false)
                   setMemberQuery("")
+                  setConfirmingDelete(false)
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start transition-colors focus-visible:ring-2 focus-visible:ring-ring",
@@ -154,22 +183,62 @@ export function ContactGroups({
                 </p>
               </div>
               {allowed && (
-                <Button
-                  variant={managingMembers ? "secondary" : "outline"}
-                  onClick={() => {
-                    setManagingMembers((value) => !value)
-                    setMemberQuery("")
-                  }}
-                >
-                  {managingMembers ? (
-                    <X aria-hidden />
-                  ) : (
-                    <UserPlus aria-hidden />
-                  )}
-                  {managingMembers ? "إنهاء" : "إدارة الأعضاء"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={managingMembers ? "secondary" : "outline"}
+                    onClick={() => {
+                      setManagingMembers((value) => !value)
+                      setMemberQuery("")
+                      setConfirmingDelete(false)
+                    }}
+                  >
+                    {managingMembers ? (
+                      <X aria-hidden />
+                    ) : (
+                      <UserPlus aria-hidden />
+                    )}
+                    {managingMembers ? "إنهاء" : "إدارة الأعضاء"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={`حذف مجموعة ${selected.name}`}
+                    title="حذف المجموعة"
+                    onClick={() => setConfirmingDelete((value) => !value)}
+                  >
+                    <Trash2 aria-hidden />
+                  </Button>
+                </div>
               )}
             </header>
+            {confirmingDelete && (
+              <div className="border-b border-destructive/30 bg-destructive/5 px-5 py-4">
+                <p className="text-sm font-medium">
+                  حذف مجموعة &quot;{selected.name}&quot;؟
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  لن يؤثر هذا على جهات الاتصال نفسها، وستبقى بياناتها كما هي.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deleting}
+                    onClick={handleDeleteGroup}
+                  >
+                    {deleting ? "جارٍ الحذف…" : "حذف"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={deleting}
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    إلغاء
+                  </Button>
+                </div>
+              </div>
+            )}
             {managingMembers && (
               <section
                 aria-labelledby="member-picker-title"

@@ -56,6 +56,7 @@ const RECIPIENT_WIRE: Record<CampaignRecipientStatus, string> = {
   READ: 'read',
   FAILED: 'failed',
   SKIPPED: 'skipped',
+  UNCERTAIN: 'uncertain',
 };
 const RECIPIENT_DB: Record<string, CampaignRecipientStatus> =
   Object.fromEntries(
@@ -96,6 +97,8 @@ export interface CampaignStats {
   read: number;
   failed: number;
   skipped: number;
+  /** A send whose outcome could not be confirmed — never silently hidden. */
+  uncertain: number;
 }
 
 const emptyStats = (): CampaignStats => ({
@@ -107,6 +110,7 @@ const emptyStats = (): CampaignStats => ({
   read: 0,
   failed: 0,
   skipped: 0,
+  uncertain: 0,
 });
 
 /**
@@ -681,9 +685,10 @@ export class CampaignService {
     organizationId: string,
     groupIds: readonly string[],
     contactIds: readonly string[],
+    db: Prisma.TransactionClient | CampaignRepository['db'] = this.repo.db,
   ): Promise<AudienceContact[]> {
     if (!groupIds.length && !contactIds.length) return [];
-    return this.repo.db.contact.findMany({
+    return db.contact.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -756,17 +761,22 @@ export class CampaignService {
    *
    * Values are rendered now rather than at send time, so an edit to a contact
    * midway through a campaign cannot change what the rest of the audience is
-   * told, and the sent wording stays reconstructable afterwards.
+   * told, and the sent wording stays reconstructable afterwards. Runs inside
+   * the caller's transaction so a concurrent launch of the same campaign, or
+   * an empty-audience abort, rolls back every row it inserted rather than
+   * leaving a partial snapshot behind.
    */
   private async materialize(
     c: CallerContext,
     campaign: Aggregate,
+    tx: Prisma.TransactionClient,
   ): Promise<{ queued: number; skipped: number }> {
     const contacts = await this.audienceContacts(
       c,
       campaign.organizationId,
       campaign.audiences.map((audience) => audience.groupId),
       [],
+      tx,
     );
     const bodyBindings = this.bindings(campaign.variableMap);
     const headerBindings = this.bindings(campaign.headerVariableMap);
@@ -810,13 +820,13 @@ export class CampaignService {
     }
 
     for (let index = 0; index < rows.length; index += 1000)
-      await this.repo.db.campaignRecipient.createMany({
+      await tx.campaignRecipient.createMany({
         data: rows.slice(index, index + 1000),
         skipDuplicates: true,
       });
 
     const queued = rows.length - skipped;
-    await this.repo.db.campaign.update({
+    await tx.campaign.update({
       where: { id: campaign.id },
       data: { totalRecipients: rows.length, skippedCount: skipped },
     });
@@ -866,52 +876,66 @@ export class CampaignService {
       await this.fieldIds(campaign.organizationId),
     );
 
-    const { queued, skipped } = await this.materialize(c, campaign);
-    if (!queued) {
-      // A corrected variable mapping must be able to rebuild the audience on
-      // the next launch attempt; skipped rows contain the old frozen values.
-      await this.repo.db.$transaction([
-        this.repo.db.campaignRecipient.deleteMany({
-          where: { campaignId: id },
-        }),
-        this.repo.db.campaign.update({
-          where: { id },
-          data: { totalRecipients: 0, skippedCount: 0 },
-        }),
-      ]);
-      throw new DomainException(
-        'audience-empty',
-        skipped
-          ? 'كل جهات الاتصال ينقصها متغير مطلوب. أضف قيمة احتياطية للمتغيرات.'
-          : 'لا توجد جهات اتصال صالحة في المجموعات المختارة.',
-        422,
-      );
-    }
-
     const scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
     const scheduled = Boolean(
       scheduledAt && scheduledAt.getTime() > Date.now(),
     );
-    await this.repo.db.campaign.update({
-      where: { id },
-      data: {
-        status: scheduled ? 'SCHEDULED' : 'RUNNING',
-        scheduledAt,
-        startedAt: scheduled ? null : new Date(),
-        lastError: null,
-        updatedBy: c.accountId,
-        version: { increment: 1 },
-      },
-    });
-    await this.event(
-      id,
-      scheduled ? 'AUDIENCE_BUILT' : 'STARTED',
-      scheduled
-        ? `جُدولت الحملة لـ ${queued} مستلمًا`
-        : `بدأ إرسال الحملة إلى ${queued} مستلمًا`,
-      c,
-      { queued, skipped },
-    );
+
+    // The transition out of DRAFT, the frozen recipient snapshot, and the
+    // lifecycle event all commit — or none do. A concurrent second launch of
+    // the same campaign loses the guarded update below (it matches zero
+    // rows once this transaction commits) and is rejected outright, instead
+    // of racing this one to materialize a second, possibly divergent,
+    // snapshot. A 20,000-contact audience needs more than the default
+    // transaction timeout to insert in 1,000-row batches.
+    try {
+      await this.repo.db.$transaction(
+        async (tx) => {
+          const guarded = await tx.campaign.updateMany({
+            where: { id, status: 'DRAFT', deletedAt: null },
+            data: {
+              status: scheduled ? 'SCHEDULED' : 'RUNNING',
+              scheduledAt,
+              startedAt: scheduled ? null : new Date(),
+              lastError: null,
+              updatedBy: c.accountId,
+              version: { increment: 1 },
+            },
+          });
+          if (guarded.count === 0)
+            throw new DomainException(
+              'campaign-not-launchable',
+              'يمكن إطلاق الحملات في حالة المسودة فقط.',
+              409,
+            );
+
+          const outcome = await this.materialize(c, campaign, tx);
+          if (!outcome.queued)
+            throw new DomainException(
+              'audience-empty',
+              outcome.skipped
+                ? 'كل جهات الاتصال ينقصها متغير مطلوب. أضف قيمة احتياطية للمتغيرات.'
+                : 'لا توجد جهات اتصال صالحة في المجموعات المختارة.',
+              422,
+            );
+
+          await this.event(
+            id,
+            scheduled ? 'AUDIENCE_BUILT' : 'STARTED',
+            scheduled
+              ? `جُدولت الحملة لـ ${outcome.queued} مستلمًا`
+              : `بدأ إرسال الحملة إلى ${outcome.queued} مستلمًا`,
+            c,
+            outcome,
+            tx,
+          );
+          return outcome;
+        },
+        { timeout: 60_000, maxWait: 10_000 },
+      );
+    } catch (error) {
+      this.mapWriteConflict(error);
+    }
     return this.detail(c, id);
   }
 
@@ -927,25 +951,60 @@ export class CampaignService {
     const campaign = await this.visible(c, id);
     if (!from.includes(campaign.status))
       throw new DomainException('campaign-state-invalid', refusal, 409);
-    await this.repo.db.campaign.update({
-      where: { id },
-      data: {
-        status: to,
-        ...(to === 'RUNNING' && !campaign.startedAt
-          ? { startedAt: new Date() }
-          : {}),
-        ...(to === 'CANCELLED' ? { completedAt: new Date() } : {}),
-        ...(to === 'RUNNING' ? { lastError: null } : {}),
-        updatedBy: c.accountId,
-        version: { increment: 1 },
-      },
-    });
-    if (to === 'CANCELLED')
-      await this.repo.db.campaignRecipient.updateMany({
-        where: { campaignId: id, status: 'PENDING' },
-        data: { status: 'SKIPPED', errorCode: 'cancelled' },
+    await this.repo.db.$transaction(async (tx) => {
+      // Guarded on the status this read saw: a concurrent transition (a
+      // second pause, the worker's own auto-pause-on-error) can only ever
+      // lose this race, never double-apply or regress an already-moved row.
+      const guarded = await tx.campaign.updateMany({
+        where: { id, status: { in: from } },
+        data: {
+          status: to,
+          ...(to === 'RUNNING' && !campaign.startedAt
+            ? { startedAt: new Date() }
+            : {}),
+          ...(to === 'CANCELLED' ? { completedAt: new Date() } : {}),
+          ...(to === 'RUNNING' ? { lastError: null } : {}),
+          updatedBy: c.accountId,
+          version: { increment: 1 },
+        },
       });
-    await this.event(id, kind, label, c);
+      if (guarded.count === 0)
+        throw new DomainException('campaign-state-invalid', refusal, 409);
+
+      let newlySkipped = 0;
+      if (to === 'CANCELLED' || to === 'PAUSED') {
+        // A row a worker has claimed but not yet sent is safe to let go of:
+        // paused work returns to the queue, cancelled work is skipped
+        // outright. A row whose Graph API request has already started is
+        // left untouched — it may still land, and must resolve honestly.
+        const released = await tx.campaignRecipient.updateMany({
+          where: { campaignId: id, status: 'SENDING', requestStartedAt: null },
+          data:
+            to === 'CANCELLED'
+              ? {
+                  status: 'SKIPPED',
+                  errorCode: 'cancelled',
+                  claimToken: null,
+                  leaseExpiresAt: null,
+                }
+              : { status: 'PENDING', claimToken: null, leaseExpiresAt: null },
+        });
+        if (to === 'CANCELLED') newlySkipped += released.count;
+      }
+      if (to === 'CANCELLED') {
+        const pending = await tx.campaignRecipient.updateMany({
+          where: { campaignId: id, status: 'PENDING' },
+          data: { status: 'SKIPPED', errorCode: 'cancelled' },
+        });
+        newlySkipped += pending.count;
+        if (newlySkipped)
+          await tx.campaign.update({
+            where: { id },
+            data: { skippedCount: { increment: newlySkipped } },
+          });
+      }
+      await this.event(id, kind, label, c, undefined, tx);
+    });
     return this.detail(c, id);
   }
 
@@ -1033,6 +1092,7 @@ export class CampaignService {
         deliveredAt: row.deliveredAt?.toISOString(),
         readAt: row.readAt?.toISOString(),
         failedAt: row.failedAt?.toISOString(),
+        uncertainAt: row.uncertainAt?.toISOString(),
       })),
       total,
       nextCursor:
@@ -1065,6 +1125,7 @@ export class CampaignService {
       'sentAt',
       'deliveredAt',
       'readAt',
+      'uncertainAt',
       'errorCode',
       'errorMessage',
     ];
@@ -1079,6 +1140,7 @@ export class CampaignService {
           row.sentAt?.toISOString() ?? '',
           row.deliveredAt?.toISOString() ?? '',
           row.readAt?.toISOString() ?? '',
+          row.uncertainAt?.toISOString() ?? '',
           row.errorCode ?? '',
           row.errorMessage ?? '',
         ]

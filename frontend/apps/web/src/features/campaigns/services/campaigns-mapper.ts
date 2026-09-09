@@ -31,6 +31,7 @@ const emptyStats: CampaignStats = {
   read: 0,
   failed: 0,
   skipped: 0,
+  uncertain: 0,
 }
 
 export const toTemplate = (template: ApiTemplate): WhatsappTemplate => ({

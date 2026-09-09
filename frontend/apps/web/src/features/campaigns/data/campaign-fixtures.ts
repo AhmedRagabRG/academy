@@ -85,6 +85,7 @@ const stats = (values: Partial<Campaign["stats"]>): Campaign["stats"] => ({
   read: 0,
   failed: 0,
   skipped: 0,
+  uncertain: 0,
   ...values,
 })
 

@@ -167,4 +167,137 @@ describe('WhatsappTemplateSender', () => {
       status: 503,
     });
   });
+
+  it('stamps biz_opaque_callback_data with the strict campaign correlation marker', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid-3' }] }), {
+        status: 200,
+      }),
+    );
+    const sender = new WhatsappTemplateSender(config, credentials(channel));
+    await sender.send(
+      {
+        organizationId: 'org-1',
+        to: '201000000000',
+        templateName: 'x',
+        language: 'ar',
+        bodyTokens: [],
+        bodyValues: [],
+        headerTokens: [],
+        headerValues: [],
+        correlationId: '8f14e45f-ceea-4d6b-9c29-0b9c6c5a8e2c',
+      },
+      channel,
+    );
+    const body: unknown = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1]?.body as string) ?? '{}',
+    );
+    expect(body).toMatchObject({
+      biz_opaque_callback_data:
+        'academy-campaign:v1:8f14e45f-ceea-4d6b-9c29-0b9c6c5a8e2c',
+    });
+  });
+
+  it('omits biz_opaque_callback_data when no correlation id is given', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid-4' }] }), {
+        status: 200,
+      }),
+    );
+    const sender = new WhatsappTemplateSender(config, credentials(channel));
+    await sender.send(
+      {
+        organizationId: 'org-1',
+        to: '201000000000',
+        templateName: 'x',
+        language: 'ar',
+        bodyTokens: [],
+        bodyValues: [],
+        headerTokens: [],
+        headerValues: [],
+      },
+      channel,
+    );
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1]?.body as string) ?? '{}',
+    ) as Record<string, unknown>;
+    expect('biz_opaque_callback_data' in body).toBe(false);
+  });
+
+  it('classifies a dropped connection as ambiguous, never retryable', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('ECONNRESET'));
+    const sender = new WhatsappTemplateSender(config, credentials(channel));
+    const failure = await sender
+      .send(
+        {
+          organizationId: 'org-1',
+          to: '201000000000',
+          templateName: 'x',
+          language: 'ar',
+          bodyTokens: [],
+          bodyValues: [],
+          headerTokens: [],
+          headerValues: [],
+        },
+        channel,
+      )
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(TemplateSendError);
+    expect(failure).toMatchObject({ outcome: 'ambiguous', retryable: false });
+  });
+
+  it('classifies a 2xx response with no readable message id as ambiguous', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response('not json', { status: 200 }));
+    const sender = new WhatsappTemplateSender(config, credentials(channel));
+    const failure = await sender
+      .send(
+        {
+          organizationId: 'org-1',
+          to: '201000000000',
+          templateName: 'x',
+          language: 'ar',
+          bodyTokens: [],
+          bodyValues: [],
+          headerTokens: [],
+          headerValues: [],
+        },
+        channel,
+      )
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(TemplateSendError);
+    expect(failure).toMatchObject({
+      code: 'provider-response-invalid',
+      outcome: 'ambiguous',
+      retryable: false,
+    });
+  });
+
+  it('classifies an unstructured 5xx as ambiguous to avoid an unsafe replay', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 503 }));
+    const sender = new WhatsappTemplateSender(config, credentials(channel));
+    const failure = await sender
+      .send(
+        {
+          organizationId: 'org-1',
+          to: '201000000000',
+          templateName: 'x',
+          language: 'ar',
+          bodyTokens: [],
+          bodyValues: [],
+          headerTokens: [],
+          headerValues: [],
+        },
+        channel,
+      )
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(TemplateSendError);
+    expect(failure).toMatchObject({
+      outcome: 'ambiguous',
+      retryable: false,
+    });
+  });
 });

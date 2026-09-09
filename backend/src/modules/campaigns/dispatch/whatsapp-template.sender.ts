@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../../core/exceptions';
+import { campaignCorrelationMarker } from '../../../core/events/meta-message-status.event';
 import {
   ChannelCredentialsService,
   type ChannelCredentials,
@@ -17,17 +18,39 @@ export interface TemplateSendRequest {
   bodyValues: readonly string[];
   headerTokens: readonly string[];
   headerValues: readonly string[];
+  /** Stamped as `biz_opaque_callback_data` so status webhooks echo it back. */
+  correlationId?: string;
 }
 
-/** A provider refusal, tagged with whether trying again could ever succeed. */
+/**
+ * How certain we are about whether the external side effect happened.
+ *
+ * - `explicit-refusal`: Meta gave a definitive "no" that will never change —
+ *   an invalid number, a disabled template. Retrying only burns quota.
+ * - `explicit-retryable`: Meta gave a definitive "not right now" — a rate
+ *   limit, a transient 5xx. Safe to retry because Meta told us it did not
+ *   accept the request.
+ * - `ambiguous`: we do not know whether Meta received or accepted the
+ *   request (the connection failed, or a 2xx response couldn't be read).
+ *   Retrying here risks sending the same message twice, so the caller must
+ *   never treat this as retryable.
+ */
+export type TemplateSendOutcome =
+  'explicit-refusal' | 'explicit-retryable' | 'ambiguous';
+
+/** A provider outcome, tagged with how certain and how safe-to-retry it is. */
 export class TemplateSendError extends Error {
   constructor(
     readonly code: string,
     message: string,
-    readonly retryable: boolean,
+    readonly outcome: TemplateSendOutcome,
   ) {
     super(message);
     this.name = 'TemplateSendError';
+  }
+
+  get retryable(): boolean {
+    return this.outcome === 'explicit-retryable';
   }
 }
 
@@ -46,6 +69,8 @@ const RETRYABLE_CODES = new Set([
   '133016', // temporary blocking
   '368', // temporarily blocked for policy violations
 ]);
+
+const SEND_TIMEOUT_MS = 30_000;
 
 interface GraphSendResponse {
   messages?: Array<{ id: string }>;
@@ -116,6 +141,7 @@ export class WhatsappTemplateSender {
             Authorization: `Bearer ${channel.accessToken}`,
             'Content-Type': 'application/json',
           },
+          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
           body: JSON.stringify({
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
@@ -126,14 +152,23 @@ export class WhatsappTemplateSender {
               language: { code: request.language },
               ...(components.length ? { components } : {}),
             },
+            ...(request.correlationId
+              ? {
+                  biz_opaque_callback_data: campaignCorrelationMarker(
+                    request.correlationId,
+                  ),
+                }
+              : {}),
           }),
         },
       );
     } catch (error) {
+      // The request may or may not have reached Meta — a dropped connection
+      // tells us nothing either way. Never classify this as safe to retry.
       throw new TemplateSendError(
         'network',
         error instanceof Error ? error.message : 'تعذر الاتصال بمنصة Meta',
-        true,
+        'ambiguous',
       );
     }
 
@@ -142,20 +177,33 @@ export class WhatsappTemplateSender {
       .catch(() => ({}))) as GraphSendResponse;
     if (!response.ok || payload.error) {
       const code = String(payload.error?.code ?? response.status);
+      const retryable = RETRYABLE_CODES.has(code) || response.status === 429;
+      // A generic 5xx can be emitted after an upstream accepted the request;
+      // without a documented idempotency key, replaying it is unsafe. Only a
+      // provider code explicitly known to mean "not accepted, retry later"
+      // (or HTTP 429) is automatically retried.
+      const outcome: TemplateSendOutcome = retryable
+        ? 'explicit-retryable'
+        : response.status >= 500
+          ? 'ambiguous'
+          : 'explicit-refusal';
       throw new TemplateSendError(
         code,
         payload.error?.error_data?.details ??
           payload.error?.message ??
           'تعذر إرسال الرسالة عبر واتساب',
-        RETRYABLE_CODES.has(code) || response.status >= 500,
+        outcome,
       );
     }
     const reference = payload.messages?.[0]?.id;
     if (!reference)
+      // Meta answered 2xx — it may well have accepted the message — but the
+      // body never yielded an id to record. We cannot tell; resending here
+      // could duplicate an already-accepted send, so this stays ambiguous.
       throw new TemplateSendError(
         'provider-response-invalid',
         'استجابة واتساب غير صالحة',
-        true,
+        'ambiguous',
       );
     return reference;
   }

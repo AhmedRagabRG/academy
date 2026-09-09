@@ -935,6 +935,12 @@ enum CampaignRecipientStatus {
   READ
   FAILED
   SKIPPED
+  /// A provider outcome that could not be confirmed — a crash after the Graph
+  /// API request started but before the response was persisted, or an
+  /// ambiguous network/invalid-response failure. Terminal: never retried
+  /// automatically. A later signed status webhook correlated by
+  /// `correlationId` may still resolve it to a confirmed state.
+  UNCERTAIN
 }
 
 enum CampaignEventKind {
@@ -988,46 +994,55 @@ model WhatsappTemplate {
 }
 
 model Campaign {
-  id                String                  @id @default(uuid()) @db.Uuid
-  organizationId    String                  @db.Uuid
-  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name              String
-  normalizedName    String
-  description       String                  @default("")
-  templateId        String                  @db.Uuid
-  template          WhatsappTemplate        @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  connectionId      String?                 @db.Uuid
-  connection        InboxChannelConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-  status            CampaignStatus          @default(DRAFT)
+  id                      String                  @id @default(uuid()) @db.Uuid
+  organizationId          String                  @db.Uuid
+  organization            Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                    String
+  normalizedName          String
+  description             String                  @default("")
+  templateId              String                  @db.Uuid
+  template                WhatsappTemplate        @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  connectionId            String?                 @db.Uuid
+  connection              InboxChannelConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  status                  CampaignStatus          @default(DRAFT)
   /// One entry per positional placeholder: `{ position, source, value }`, where
   /// source is `contact` (a built-in column), `field` (a custom field id), or
   /// `literal` (the same text for everyone).
-  variableMap       Json                    @default("[]")
-  headerVariableMap Json                    @default("[]")
+  variableMap             Json                    @default("[]")
+  headerVariableMap       Json                    @default("[]")
   /// Messages handed to Meta per minute. The Cloud API accepts far more; the
   /// cap exists so one campaign cannot starve conversational replies.
-  throttlePerMinute Int                     @default(120)
-  scheduledAt       DateTime?               @db.Timestamptz
-  startedAt         DateTime?               @db.Timestamptz
-  completedAt       DateTime?               @db.Timestamptz
-  totalRecipients   Int                     @default(0)
-  sentCount         Int                     @default(0)
-  deliveredCount    Int                     @default(0)
-  readCount         Int                     @default(0)
-  failedCount       Int                     @default(0)
-  skippedCount      Int                     @default(0)
-  lastError         String?
-  createdById       String                  @db.Uuid
-  createdByAccount  Account                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  createdByName     String
-  deletedAt         DateTime?               @db.Timestamptz
-  version           Int                     @default(1)
-  createdAt         DateTime                @default(now()) @db.Timestamptz
-  updatedAt         DateTime                @updatedAt @db.Timestamptz
-  updatedBy         String?                 @db.Uuid
-  audiences         CampaignAudience[]
-  recipients        CampaignRecipient[]
-  events            CampaignEvent[]
+  throttlePerMinute       Int                     @default(120)
+  scheduledAt             DateTime?               @db.Timestamptz
+  startedAt               DateTime?               @db.Timestamptz
+  completedAt             DateTime?               @db.Timestamptz
+  totalRecipients         Int                     @default(0)
+  sentCount               Int                     @default(0)
+  deliveredCount          Int                     @default(0)
+  readCount               Int                     @default(0)
+  failedCount             Int                     @default(0)
+  skippedCount            Int                     @default(0)
+  uncertainCount          Int                     @default(0)
+  /// Persistent, cross-instance throttle gate: how many sends this campaign
+  /// has spent in the fixed 60-second window starting at
+  /// `throttleWindowStartedAt`. The dispatcher reserves budget from this row
+  /// with a single atomic UPDATE before claiming recipients, so the
+  /// `throttlePerMinute` cap holds even when several application instances
+  /// dispatch the same campaign at once.
+  throttleWindowStartedAt DateTime                @default(now()) @db.Timestamptz
+  throttleWindowCount     Int                     @default(0)
+  lastError               String?
+  createdById             String                  @db.Uuid
+  createdByAccount        Account                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdByName           String
+  deletedAt               DateTime?               @db.Timestamptz
+  version                 Int                     @default(1)
+  createdAt               DateTime                @default(now()) @db.Timestamptz
+  updatedAt               DateTime                @updatedAt @db.Timestamptz
+  updatedBy               String?                 @db.Uuid
+  audiences               CampaignAudience[]
+  recipients              CampaignRecipient[]
+  events                  CampaignEvent[]
 
   /// A real uniqueness constraint on this pair would block reusing a name
   /// after the campaign that held it is soft-deleted. The actual guarantee —
@@ -1074,6 +1089,25 @@ model CampaignRecipient {
   headerVariables   String[]                @default([])
   attempts          Int                     @default(0)
   providerMessageId String?                 @unique
+  /// A strict, non-secret correlation marker (see `biz_opaque_callback_data`
+  /// in the WhatsApp send request) generated once when the recipient row is
+  /// created and never changed. Meta echoes it back on every status webhook
+  /// for that send, so a late receipt can find this row even when
+  /// `providerMessageId` was never persisted — e.g. a crash right after the
+  /// Graph API accepted the request.
+  correlationId     String                  @unique @default(uuid()) @db.Uuid
+  /// Ownership token for the worker currently holding this row's claim.
+  /// Cleared whenever the row leaves `SENDING`.
+  claimToken        String?                 @db.Uuid
+  /// When the current claim must be treated as abandoned if no terminal
+  /// write has landed. `recoverStale` uses this, not a fixed age, so the
+  /// lease length can differ from the sweep interval.
+  leaseExpiresAt    DateTime?               @db.Timestamptz
+  /// Set only once the Graph API request has actually been issued. Before
+  /// this is set, a stale claim is safely reclaimable back to `PENDING`; once
+  /// set, the external side effect may have already happened, so a stale
+  /// claim must resolve to `UNCERTAIN` instead.
+  requestStartedAt  DateTime?               @db.Timestamptz
   errorCode         String?
   errorMessage      String?
   availableAt       DateTime                @default(now()) @db.Timestamptz
@@ -1081,11 +1115,13 @@ model CampaignRecipient {
   deliveredAt       DateTime?               @db.Timestamptz
   readAt            DateTime?               @db.Timestamptz
   failedAt          DateTime?               @db.Timestamptz
+  uncertainAt       DateTime?               @db.Timestamptz
   createdAt         DateTime                @default(now()) @db.Timestamptz
   updatedAt         DateTime                @updatedAt @db.Timestamptz
 
   @@unique([campaignId, normalizedPhone])
   @@index([status, availableAt])
+  @@index([status, leaseExpiresAt])
   @@index([campaignId, status, createdAt, id])
   @@index([contactId])
 }

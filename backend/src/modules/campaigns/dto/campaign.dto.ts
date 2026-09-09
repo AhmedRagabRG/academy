@@ -35,6 +35,7 @@ export const RECIPIENT_STATUSES = [
   'read',
   'failed',
   'skipped',
+  'uncertain',
 ] as const;
 export type RecipientStatusCode = (typeof RECIPIENT_STATUSES)[number];
 

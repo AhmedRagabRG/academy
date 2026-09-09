@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '../../../../prisma/generated/client';
 import {
   META_MESSAGE_STATUS_EVENT,
+  parseCampaignCorrelationId,
   type MetaMessageStatusEvent,
 } from '../../../core/events/meta-message-status.event';
 import { PrismaService } from '../../../database/prisma.service';
@@ -40,6 +41,10 @@ interface IncomingStatus {
   watermark?: Date;
   errorCode?: string;
   errorMessage?: string;
+  /** The provider's own timestamp for this status, when it reported one. */
+  occurredAt?: Date;
+  /** A validated campaign correlation marker, WhatsApp statuses only. */
+  correlationId?: string;
 }
 
 const DELIVERY_STATES: Record<
@@ -288,6 +293,12 @@ export class MetaWebhookService {
                 string(failure.title) ||
                 string(failure.message) ||
                 undefined,
+              occurredAt: status.timestamp
+                ? timestamp(status.timestamp)
+                : undefined,
+              correlationId: parseCampaignCorrelationId(
+                status.biz_opaque_callback_data,
+              ),
             });
         }
     return result;
@@ -333,12 +344,18 @@ export class MetaWebhookService {
       });
       // Published for whoever owns the message; a receipt for a message this
       // inbox never sent — a campaign send, say — matches nothing above.
-      this.events.emit(META_MESSAGE_STATUS_EVENT, {
+      // Await campaign reconciliation. If a listener's database transaction
+      // fails, the webhook request must fail too so Meta retries the signed
+      // status instead of receiving a false 200 while campaign state drifts.
+      await this.events.emitAsync(META_MESSAGE_STATUS_EVENT, {
         providerMessageId: status.id,
         state: status.state as MetaMessageStatusEvent['state'],
-        occurredAt: new Date().toISOString(),
+        occurredAt: (status.occurredAt ?? new Date()).toISOString(),
         errorCode: status.errorCode,
         errorMessage: status.errorMessage,
+        ...(status.correlationId
+          ? { correlationId: status.correlationId }
+          : {}),
       } satisfies MetaMessageStatusEvent);
     }
     if (delivery === 'READ' && status.participantId && status.watermark)

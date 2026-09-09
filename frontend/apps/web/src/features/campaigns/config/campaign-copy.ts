@@ -17,6 +17,7 @@ export const recipientStatusLabel: Record<RecipientStatus, string> = {
   read: "قُرئت",
   failed: "فشلت",
   skipped: "مستبعدة",
+  uncertain: "غير مؤكدة",
 }
 
 export const contactTokenLabel: Record<string, string> = {

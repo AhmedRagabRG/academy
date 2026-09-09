@@ -76,6 +76,7 @@ function fromDraft(
       read: 0,
       failed: 0,
       skipped: 0,
+      uncertain: 0,
     },
     createdByName: current?.createdByName ?? "أحمد محمد",
     version: (current?.version ?? 0) + 1,

@@ -23,6 +23,8 @@ const tones: Record<CampaignStatus | RecipientStatus, string> = {
   read: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
   failed: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
   skipped: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  uncertain:
+    "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200",
 }
 
 export function CampaignStatusBadge({ status }: { status: CampaignStatus }) {

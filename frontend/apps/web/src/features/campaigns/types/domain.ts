@@ -2,7 +2,14 @@ export type CampaignStatus =
   "draft" | "scheduled" | "running" | "paused" | "completed" | "cancelled"
 
 export type RecipientStatus =
-  "pending" | "sending" | "sent" | "delivered" | "read" | "failed" | "skipped"
+  | "pending"
+  | "sending"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed"
+  | "skipped"
+  | "uncertain"
 
 export type TemplateStatus =
   "approved" | "pending" | "rejected" | "paused" | "disabled"
@@ -49,6 +56,8 @@ export interface CampaignStats {
   read: number
   failed: number
   skipped: number
+  /** A send whose outcome could not be confirmed — shown, never hidden. */
+  uncertain: number
 }
 
 export interface CampaignEvent {
@@ -97,6 +106,7 @@ export interface CampaignRecipient {
   deliveredAt?: string
   readAt?: string
   failedAt?: string
+  uncertainAt?: string
 }
 
 export interface AudienceGroup {

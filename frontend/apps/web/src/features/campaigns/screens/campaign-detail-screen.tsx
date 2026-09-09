@@ -11,6 +11,7 @@ import {
   Download,
   Edit3,
   Eye,
+  HelpCircle,
   LoaderCircle,
   MessageSquareText,
   Pause,
@@ -268,7 +269,7 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }) {
       )}
 
       <section
-        className="mb-6 grid overflow-hidden rounded-xl border bg-card sm:grid-cols-2 xl:grid-cols-5"
+        className="mb-6 grid overflow-hidden rounded-xl border bg-card sm:grid-cols-2 xl:grid-cols-6"
         aria-label="نتائج الحملة"
       >
         {[
@@ -277,6 +278,11 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }) {
           { label: "وصلت", value: reached, icon: CheckCheck },
           { label: "قُرئت", value: campaign.stats.read, icon: Eye },
           { label: "فشلت", value: campaign.stats.failed, icon: XCircle },
+          {
+            label: "غير مؤكدة",
+            value: campaign.stats.uncertain,
+            icon: HelpCircle,
+          },
         ].map((item, index) => (
           <div
             key={item.label}
@@ -497,7 +503,8 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }) {
                         recipient.readAt ??
                           recipient.deliveredAt ??
                           recipient.sentAt ??
-                          recipient.failedAt
+                          recipient.failedAt ??
+                          recipient.uncertainAt
                       )}
                     </td>
                   </tr>

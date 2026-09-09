@@ -2,6 +2,7 @@ import type { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'node:crypto';
 import { Prisma } from '../../../prisma/generated/client';
+import { CAMPAIGN_CORRELATION_PREFIX } from '../../../src/core/events/meta-message-status.event';
 import type { PrismaService } from '../../../src/database/prisma.service';
 import type { ChannelCredentialsService } from '../../../src/modules/inbox/channels/channel-credentials.service';
 import type { InboxCrmLinkService } from '../../../src/modules/inbox/crm/inbox-crm-link.service';
@@ -57,7 +58,8 @@ const crm = () => {
 };
 
 /** The webhook publishes provider receipts; the tests only need a sink. */
-const emitter = () => ({ emit: jest.fn() }) as unknown as EventEmitter2;
+const emitter = () =>
+  ({ emitAsync: jest.fn().mockResolvedValue([]) }) as unknown as EventEmitter2;
 
 const messengerRoute = {
   organizationId: 'organization-id',
@@ -641,6 +643,119 @@ describe('MetaWebhookService', () => {
       },
       data: { delivery: 'DELIVERED' },
     });
+  });
+
+  it('attaches a validated campaign correlation id and the provider timestamp to a WhatsApp status event', async () => {
+    const db = database();
+    const emitAsync = jest.fn().mockResolvedValue([]);
+    const service = new MetaWebhookService(
+      config,
+      db as unknown as PrismaService,
+      new InboxRealtimeService(),
+      channels(messengerRoute).service,
+      crm().service,
+      { emitAsync } as unknown as EventEmitter2,
+    );
+    const correlationId = '8f14e45f-ceea-4d6b-9c29-0b9c6c5a8e2c';
+    await service.ingest({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                statuses: [
+                  {
+                    id: 'wamid-correlated',
+                    status: 'delivered',
+                    timestamp: '1786333200',
+                    biz_opaque_callback_data: `${CAMPAIGN_CORRELATION_PREFIX}${correlationId}`,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(emitAsync).toHaveBeenCalledWith(
+      'meta.message-status',
+      expect.objectContaining({
+        providerMessageId: 'wamid-correlated',
+        correlationId,
+        occurredAt: new Date(1_786_333_200_000).toISOString(),
+      }),
+    );
+  });
+
+  it('never propagates a malformed biz_opaque_callback_data as a correlation id', async () => {
+    const db = database();
+    const emitAsync = jest.fn().mockResolvedValue([]);
+    const service = new MetaWebhookService(
+      config,
+      db as unknown as PrismaService,
+      new InboxRealtimeService(),
+      channels(messengerRoute).service,
+      crm().service,
+      { emitAsync } as unknown as EventEmitter2,
+    );
+    await service.ingest({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                statuses: [
+                  {
+                    id: 'wamid-bad-marker',
+                    status: 'delivered',
+                    biz_opaque_callback_data: 'not-a-campaign-marker',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const calls = emitAsync.mock.calls as Array<
+      [string, Record<string, unknown>]
+    >;
+    const event = calls[0]?.[1];
+    expect(event).toBeDefined();
+    expect('correlationId' in event).toBe(false);
+  });
+
+  it('propagates a campaign receipt listener failure so Meta can retry the status', async () => {
+    const db = database();
+    const emitAsync = jest.fn().mockRejectedValue(new Error('database down'));
+    const service = new MetaWebhookService(
+      config,
+      db as unknown as PrismaService,
+      new InboxRealtimeService(),
+      channels(messengerRoute).service,
+      crm().service,
+      { emitAsync } as unknown as EventEmitter2,
+    );
+
+    await expect(
+      service.ingest({
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  statuses: [{ id: 'wamid-retry-me', status: 'delivered' }],
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow('database down');
+    expect(emitAsync).toHaveBeenCalledTimes(1);
   });
 
   it('marks Instagram reads by message id', async () => {

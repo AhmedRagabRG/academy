@@ -297,8 +297,19 @@ function CampaignBuilderForm({
     const merged = [...lookupData.groups, ...importedGroups]
     return [...new Map(merged.map((group) => [group.id, group])).values()]
   }, [importedGroups, lookupData.groups])
+  const approvedTemplates = useMemo(() => {
+    const approved = lookupData.templates.filter(
+      (template) => template.status === "approved"
+    )
+    if (
+      existingCampaign?.template.status === "approved" &&
+      !approved.some((template) => template.id === existingCampaign.template.id)
+    )
+      approved.push(existingCampaign.template)
+    return approved
+  }, [lookupData.templates, existingCampaign])
   const selectedTemplate =
-    lookupData.templates.find((template) => template.id === templateId) ??
+    approvedTemplates.find((template) => template.id === templateId) ??
     existingCampaign?.template
   const audience = useQuery({
     queryKey: campaignsKeys.audience(groupIds),
@@ -547,43 +558,52 @@ function CampaignBuilderForm({
                 </Button>
               )}
             </div>
-            {lookupData.templates.length ? (
-              <div className="grid gap-2 md:grid-cols-2">
-                {lookupData.templates.map((template) => (
-                  <button
-                    type="button"
-                    key={template.id}
-                    onClick={() => chooseTemplate(template)}
-                    className={cn(
-                      "relative rounded-lg border p-4 text-start transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                      templateId === template.id
-                        ? "border-brand-blue bg-brand-blue/[0.055]"
-                        : "hover:border-brand-blue/50 hover:bg-muted/40"
-                    )}
+            {approvedTemplates.length ? (
+              <>
+                <label>
+                  <span className={inputLabel}>اختر القالب</span>
+                  <select
+                    className={selectClass}
+                    value={templateId}
+                    onChange={(event) => {
+                      const template = approvedTemplates.find(
+                        (item) => item.id === event.target.value
+                      )
+                      if (template) chooseTemplate(template)
+                    }}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <option value="" disabled>
+                      اختر قالبًا معتمدًا
+                    </option>
+                    {approvedTemplates.map((template) => (
+                      <option key={template.id} value={template.id} dir="ltr">
+                        {`${template.name} — ${template.language} · ${template.category}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedTemplate && (
+                  <div className="mt-3 rounded-lg border bg-muted/30 p-3 text-xs leading-5">
+                    <p
+                      className="flex items-center gap-2 font-medium text-foreground"
+                      dir="ltr"
+                    >
                       <MessageSquareText
-                        className="size-5 text-brand-blue"
+                        className="size-4 text-brand-blue"
                         aria-hidden
                       />
-                      {templateId === template.id && (
-                        <span className="grid size-5 place-items-center rounded-full bg-brand-blue text-white">
-                          <Check className="size-3" aria-hidden />
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-3 font-medium" dir="ltr">
-                      {template.name}
+                      {selectedTemplate.name}
+                      <Check className="size-3.5 text-brand-blue" aria-hidden />
                     </p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                      {template.bodyText}
+                    <p className="mt-1 text-muted-foreground">
+                      {selectedTemplate.language} · {selectedTemplate.category}
                     </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {template.language} · {template.category}
+                    <p className="mt-2 line-clamp-2 text-muted-foreground">
+                      {selectedTemplate.bodyText}
                     </p>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                )}
+              </>
             ) : (
               <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
                 لا توجد قوالب معتمدة بعد. اربط القناة ثم زامن القوالب.

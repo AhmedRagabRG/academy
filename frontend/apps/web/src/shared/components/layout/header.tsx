@@ -1,6 +1,4 @@
-import { HeaderPlaceholders } from "./header-placeholders"
 import { TabletNavigation } from "./tablet-navigation"
-import { ThemeSwitcher } from "./theme-switcher"
 import { UserMenu } from "./user-menu"
 import { Breadcrumbs } from "./breadcrumbs"
 import { BrandLogo } from "@/shared/components/brand/brand-logo"

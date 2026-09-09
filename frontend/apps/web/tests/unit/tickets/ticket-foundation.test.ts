@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { createTicketSchema } from "@/features/tickets/schemas/ticket-schemas"
 import { normalizeSearch, filterAndSortTickets } from "@/features/tickets/utils/ticket-list-query"
 import { canViewTicket } from "@/features/tickets/utils/ticket-scope"
-import { ticketFixtures } from "@/features/tickets/data/ticket-fixtures"
+import { ticketFixtures } from "@/features/tickets/services/mock-ticket-service"
 import { ticketPermissions } from "@/features/tickets/config/ticket-permissions"
 
 describe("ticket foundation", () => {

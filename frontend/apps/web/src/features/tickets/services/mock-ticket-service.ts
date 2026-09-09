@@ -11,6 +11,8 @@ import type { TicketActor, TicketListQuery } from "../types/commands"
 import type { ActivityId, AttachmentId, CommentId, TeamId, TicketId, UserId } from "../types/common"
 import type { TicketCapabilities, TicketDetail, TicketSummary } from "../types/projections"
 
+export { ticketFixtures } from "../data/ticket-fixtures"
+
 const clone = <T>(value: T): T => structuredClone(value)
 const fallbackActor: TicketActor = { userId: "employee-demo", name: "أحمد محمد", employeeId: "employee-demo", teamIds: ["team-support"], permissions: Object.values(ticketPermissions) }
 export const defaultTicketActor = fallbackActor

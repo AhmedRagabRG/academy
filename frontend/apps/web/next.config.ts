@@ -1,4 +1,5 @@
 import type { NextConfig } from "next"
+import path from "node:path"
 
 /**
  * Where the Next server forwards `/api/v1/*` during development.
@@ -12,6 +13,9 @@ const apiOrigin = process.env.API_PROXY_ORIGIN ?? "http://localhost:3001"
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@workspace/ui"],
+  turbopack: {
+    root: path.resolve(__dirname, "../.."),
+  },
   async rewrites() {
     // A caller that points NEXT_PUBLIC_API_BASE_URL at an absolute URL is
     // addressing the API directly, so the proxy would only shadow it.

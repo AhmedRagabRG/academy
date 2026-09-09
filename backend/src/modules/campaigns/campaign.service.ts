@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 import type {
   CampaignEventKind,
   CampaignRecipientStatus,
   CampaignStatus,
   Contact,
-  Prisma,
   WhatsappTemplate,
 } from '../../../prisma/generated/client';
 import {
   DomainException,
   DuplicateException,
+  NotFoundException,
   VersionConflictException,
 } from '../../core/exceptions';
 import type { CallerContext } from '../../shared/types/caller-context';
@@ -334,6 +335,12 @@ export class CampaignService {
 
   // --------------------------------------------------------------------- write
 
+  /**
+   * A campaign may only be created or updated against a template Meta has
+   * currently approved — the same rule `launch` enforces on the frozen
+   * campaign, applied up front so a draft never silently binds itself to a
+   * template that cannot ever be sent.
+   */
   private async template(
     organizationId: string,
     templateId: string,
@@ -347,7 +354,24 @@ export class CampaignService {
         'القالب غير موجود. زامن القوالب من حساب واتساب.',
         422,
       );
+    if (template.status !== 'APPROVED')
+      throw new DomainException(
+        'template-not-approved',
+        'لا يمكن اختيار قالب غير معتمد من Meta.',
+        422,
+      );
     return template;
+  }
+
+  /** Maps a unique-name race lost at the database to the same error the
+   * pre-check would have raised had it seen the other transaction first. */
+  private mapWriteConflict(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    )
+      throw new DuplicateException();
+    throw error;
   }
 
   /** Every placeholder must be bound exactly once before a campaign may run. */
@@ -455,8 +479,9 @@ export class CampaignService {
     label: string,
     c: CallerContext,
     payload?: Prisma.InputJsonValue,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    await this.repo.db.campaignEvent.create({
+    await (tx ?? this.repo.db).campaignEvent.create({
       data: {
         campaignId,
         kind,
@@ -472,6 +497,7 @@ export class CampaignService {
     this.policy.assert(c, 'campaigns.create');
     const organizationId = await this.repo.organizationId();
     const template = await this.template(organizationId, dto.templateId);
+    this.assertBindings(template, dto, await this.fieldIds(organizationId));
     await this.assertAudienceGroups(organizationId, dto.groupIds);
     const normalized = normalizeName(dto.name);
     const clash = await this.repo.db.campaign.findFirst({
@@ -480,38 +506,52 @@ export class CampaignService {
     });
     if (clash) throw new DuplicateException();
 
-    const row = await this.repo.db.campaign.create({
-      data: {
-        organizationId,
-        name: dto.name,
-        normalizedName: normalized,
-        description: dto.description ?? '',
-        templateId: template.id,
-        connectionId: template.connectionId,
-        variableMap: this.bindingData(dto.variables),
-        headerVariableMap: this.bindingData(dto.headerVariables),
-        throttlePerMinute: dto.throttlePerMinute,
-        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
-        createdById: c.accountId,
-        createdByName: c.displayName,
-        updatedBy: c.accountId,
-        audiences: {
-          createMany: {
-            data: dto.groupIds.map((groupId) => ({ groupId })),
-            skipDuplicates: true,
+    try {
+      const row = await this.repo.db.$transaction(async (tx) => {
+        const created = await tx.campaign.create({
+          data: {
+            organizationId,
+            name: dto.name,
+            normalizedName: normalized,
+            description: dto.description ?? '',
+            templateId: template.id,
+            connectionId: null,
+            variableMap: this.bindingData(dto.variables),
+            headerVariableMap: this.bindingData(dto.headerVariables),
+            throttlePerMinute: dto.throttlePerMinute,
+            scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+            createdById: c.accountId,
+            createdByName: c.displayName,
+            updatedBy: c.accountId,
+            audiences: {
+              createMany: {
+                data: dto.groupIds.map((groupId) => ({ groupId })),
+                skipDuplicates: true,
+              },
+            },
           },
-        },
-      },
-      include: aggregateInclude,
-    });
-    await this.event(row.id, 'CREATED', 'أُنشئت الحملة', c);
-    return this.project(row, emptyStats());
+          include: aggregateInclude,
+        });
+        await this.event(
+          created.id,
+          'CREATED',
+          'أُنشئت الحملة',
+          c,
+          undefined,
+          tx,
+        );
+        return created;
+      });
+      return this.project(row, emptyStats());
+    } catch (error) {
+      this.mapWriteConflict(error);
+    }
   }
 
   async update(c: CallerContext, id: string, dto: UpdateCampaignDto) {
     this.policy.assert(c, 'campaigns.update');
     const current = await this.visible(c, id);
-    if (dto.expectedVersion && dto.expectedVersion !== current.version)
+    if (dto.expectedVersion !== current.version)
       throw new VersionConflictException(current.version);
     if (!EDITABLE.includes(current.status))
       throw new DomainException(
@@ -522,6 +562,11 @@ export class CampaignService {
     const template = await this.template(
       current.organizationId,
       dto.templateId,
+    );
+    this.assertBindings(
+      template,
+      dto,
+      await this.fieldIds(current.organizationId),
     );
     await this.assertAudienceGroups(current.organizationId, dto.groupIds);
     const normalized = normalizeName(dto.name);
@@ -538,32 +583,74 @@ export class CampaignService {
       if (clash) throw new DuplicateException();
     }
 
-    const row = await this.repo.db.$transaction(async (tx) => {
-      await tx.campaignAudience.deleteMany({ where: { campaignId: id } });
-      if (dto.groupIds.length)
-        await tx.campaignAudience.createMany({
-          data: dto.groupIds.map((groupId) => ({ campaignId: id, groupId })),
-          skipDuplicates: true,
+    let row: Aggregate;
+    try {
+      row = await this.repo.db.$transaction(async (tx) => {
+        // The version + status guard and every write it authorizes commit as
+        // one statement: a concurrent update or launch between the read above
+        // and this call can only ever match zero rows here, never corrupt one.
+        const guarded = await tx.campaign.updateMany({
+          where: {
+            id,
+            version: dto.expectedVersion,
+            status: 'DRAFT',
+            deletedAt: null,
+          },
+          data: {
+            name: dto.name,
+            normalizedName: normalized,
+            description: dto.description ?? '',
+            templateId: template.id,
+            connectionId: null,
+            variableMap: this.bindingData(dto.variables),
+            headerVariableMap: this.bindingData(dto.headerVariables),
+            throttlePerMinute: dto.throttlePerMinute,
+            scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+            updatedBy: c.accountId,
+            version: { increment: 1 },
+          },
         });
-      return tx.campaign.update({
-        where: { id },
-        data: {
-          name: dto.name,
-          normalizedName: normalized,
-          description: dto.description ?? '',
-          templateId: template.id,
-          connectionId: template.connectionId,
-          variableMap: this.bindingData(dto.variables),
-          headerVariableMap: this.bindingData(dto.headerVariables),
-          throttlePerMinute: dto.throttlePerMinute,
-          scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
-          updatedBy: c.accountId,
-          version: { increment: 1 },
-        },
-        include: aggregateInclude,
+        if (guarded.count === 0) {
+          const latest = await tx.campaign.findUnique({
+            where: { id },
+            select: { version: true, status: true, deletedAt: true },
+          });
+          if (!latest || latest.deletedAt) throw new NotFoundException();
+          if (latest.version !== dto.expectedVersion)
+            throw new VersionConflictException(latest.version);
+          if (!EDITABLE.includes(latest.status))
+            throw new DomainException(
+              'campaign-not-editable',
+              'لا يمكن تعديل حملة بعد اكتمالها أو إلغائها.',
+              409,
+            );
+          throw new VersionConflictException(latest.version);
+        }
+        await tx.campaignAudience.deleteMany({ where: { campaignId: id } });
+        if (dto.groupIds.length)
+          await tx.campaignAudience.createMany({
+            data: dto.groupIds.map((groupId) => ({
+              campaignId: id,
+              groupId,
+            })),
+            skipDuplicates: true,
+          });
+        await this.event(
+          id,
+          'UPDATED',
+          'حُدثت إعدادات الحملة',
+          c,
+          undefined,
+          tx,
+        );
+        return tx.campaign.findUniqueOrThrow({
+          where: { id },
+          include: aggregateInclude,
+        });
       });
-    });
-    await this.event(id, 'UPDATED', 'حُدثت إعدادات الحملة', c);
+    } catch (error) {
+      this.mapWriteConflict(error);
+    }
     const stats = await this.statsFor([id]);
     return this.project(row, stats.get(id) ?? emptyStats());
   }
@@ -1048,6 +1135,21 @@ export class CampaignService {
   async testSend(c: CallerContext, id: string, dto: TestSendDto) {
     this.policy.assert(c, 'campaigns.launch');
     const campaign = await this.visible(c, id);
+    if (campaign.template.status !== 'APPROVED')
+      throw new DomainException(
+        'template-not-approved',
+        'لا يمكن الإرسال التجريبي بقالب غير معتمد من Meta.',
+        422,
+      );
+    this.assertBindings(
+      campaign.template,
+      {
+        ...({} as CampaignDraftDto),
+        variables: this.bindings(campaign.variableMap),
+        headerVariables: this.bindings(campaign.headerVariableMap),
+      },
+      await this.fieldIds(campaign.organizationId),
+    );
     const to = normalizePhone(dto.phone);
     if (!to)
       throw new DomainException('phone-invalid', 'رقم الهاتف غير صالح', 422);

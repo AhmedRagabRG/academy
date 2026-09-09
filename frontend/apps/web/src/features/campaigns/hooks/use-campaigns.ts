@@ -85,7 +85,7 @@ export function useCampaignMutations() {
       }: {
         id: string
         draft: CampaignDraft
-        expectedVersion?: number
+        expectedVersion: number
       }) => campaignsService.update(id, draft, expectedVersion),
       onSuccess: (campaign) => refresh(campaign.id),
     }),

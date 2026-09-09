@@ -59,6 +59,14 @@ export function toCampaignsError(error: unknown): CampaignsError {
     "campaign-active": "CONFLICT",
     "channel-not-configured": "CHANNEL_MISSING",
     "waba-unknown": "CHANNEL_MISSING",
+    "provider-auth-failed": "META_AUTH",
+    "provider-request-failed": "META_REJECTED",
+    "provider-rate-limited": "RATE_LIMITED",
+    "provider-unavailable": "UNAVAILABLE",
+    "provider-response-invalid": "UNAVAILABLE",
+    "provider-pagination-invalid": "UNAVAILABLE",
+    "provider-pagination-cycle": "UNAVAILABLE",
+    "provider-pagination-limit": "UNAVAILABLE",
     "template-invalid": "TEMPLATE_INVALID",
     "template-not-approved": "TEMPLATE_INVALID",
     "variables-mismatch": "VALIDATION",
@@ -87,6 +95,7 @@ export function toCampaignsError(error: unknown): CampaignsError {
     code,
     error.message,
     error.fieldErrors,
+    error.currentVersion,
     error.status === 0 || error.status >= 500
   )
 }
@@ -106,6 +115,7 @@ async function guard<T>(
         forbiddenCode,
         mapped.message,
         mapped.fieldErrors,
+        mapped.currentVersion,
         mapped.retryable
       )
     throw mapped

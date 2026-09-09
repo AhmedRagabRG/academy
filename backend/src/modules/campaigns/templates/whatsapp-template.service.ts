@@ -124,57 +124,76 @@ export class WhatsappTemplateService {
       channel.accessToken,
     );
     const syncedAt = new Date();
-    const seen: string[] = [];
-    for (const asset of assets) {
-      const parsed = parseComponents(asset.components);
-      const data = {
-        organizationId,
-        wabaId,
-        providerTemplateId: asset.id,
-        name: asset.name,
-        language: asset.language,
-        category: asset.category || 'MARKETING',
-        status: STATUS_DB[asset.status?.toUpperCase()] ?? 'PENDING',
-        headerKind: parsed.headerKind ?? null,
-        headerText: parsed.headerText ?? null,
-        bodyText: parsed.bodyText,
-        footerText: parsed.footerText ?? null,
-        buttons: parsed.buttons as Prisma.InputJsonValue,
-        variableCount: parsePlaceholders(parsed.bodyText).length,
-        headerVariableCount: parsePlaceholders(parsed.headerText ?? '').length,
-        qualityScore: asset.qualityScore ?? null,
-        rejectedReason: asset.rejectedReason ?? null,
-        syncedAt,
-      };
-      const row = await this.db.whatsappTemplate.upsert({
-        where: {
-          organizationId_providerTemplateId: {
+
+    // Every upsert and the retirement sweep commit together: a Graph hiccup
+    // partway through a large account must never leave the cache half mirrored
+    // (some templates on the new wording, others stale, nothing retired).
+    const retiredCount = await this.db.$transaction(
+      async (tx) => {
+        const seen: string[] = [];
+        for (const asset of assets) {
+          const parsed = parseComponents(asset.components);
+          const data = {
             organizationId,
+            // Send credentials are environment-only; any inbox connection row
+            // this template was once linked to is not authoritative and must
+            // not silently survive a sync as stale routing information.
+            connectionId: null,
+            wabaId,
             providerTemplateId: asset.id,
+            name: asset.name,
+            language: asset.language,
+            category: asset.category || 'MARKETING',
+            status: STATUS_DB[asset.status?.toUpperCase()] ?? 'PENDING',
+            headerKind: parsed.headerKind ?? null,
+            headerText: parsed.headerText ?? null,
+            bodyText: parsed.bodyText,
+            footerText: parsed.footerText ?? null,
+            buttons: parsed.buttons as Prisma.InputJsonValue,
+            variableCount: parsePlaceholders(parsed.bodyText).length,
+            headerVariableCount: parsePlaceholders(parsed.headerText ?? '')
+              .length,
+            qualityScore: asset.qualityScore ?? null,
+            rejectedReason: asset.rejectedReason ?? null,
+            syncedAt,
+          };
+          const row = await tx.whatsappTemplate.upsert({
+            where: {
+              organizationId_providerTemplateId: {
+                organizationId,
+                providerTemplateId: asset.id,
+              },
+            },
+            create: data,
+            update: data,
+            select: { id: true },
+          });
+          seen.push(row.id);
+        }
+        const retired = await tx.whatsappTemplate.updateMany({
+          where: {
+            organizationId,
+            id: {
+              notIn: seen.length
+                ? seen
+                : ['00000000-0000-0000-0000-000000000000'],
+            },
+            status: { not: 'DISABLED' },
           },
-        },
-        create: data,
-        update: data,
-        select: { id: true },
-      });
-      seen.push(row.id);
-    }
-    const retired = await this.db.whatsappTemplate.updateMany({
-      where: {
-        organizationId,
-        id: {
-          notIn: seen.length ? seen : ['00000000-0000-0000-0000-000000000000'],
-        },
-        status: { not: 'DISABLED' },
+          data: { status: 'DISABLED', syncedAt },
+        });
+        return retired.count;
       },
-      data: { status: 'DISABLED', syncedAt },
-    });
+      // Interactive transactions otherwise expire after Prisma's 5-second
+      // default, which is too short for a WABA with hundreds of templates.
+      { maxWait: 10_000, timeout: 60_000 },
+    );
     this.logger.log(
-      `Synced ${assets.length} WhatsApp templates (${retired.count} retired)`,
+      `Synced ${assets.length} WhatsApp templates (${retiredCount} retired)`,
     );
     return {
       synced: assets.length,
-      retired: retired.count,
+      retired: retiredCount,
       syncedAt: syncedAt.toISOString(),
     };
   }

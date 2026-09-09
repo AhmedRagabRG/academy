@@ -50,7 +50,7 @@ export interface CampaignsService {
   update(
     id: string,
     draft: CampaignDraft,
-    expectedVersion?: number
+    expectedVersion: number
   ): Promise<Campaign>
   remove(id: string): Promise<void>
   previewAudience(

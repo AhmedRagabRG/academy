@@ -348,6 +348,8 @@ function CampaignBuilderForm({
     if (name.trim().length < 2)
       return feedback.error("أدخل اسمًا واضحًا للحملة.")
     if (!selectedTemplate) return feedback.error("اختر قالب واتساب معتمدًا.")
+    if (campaignId && !existingCampaign)
+      return feedback.error("تعذر تحميل بيانات الحملة الحالية. أعد المحاولة.")
     if (launch && !groupIds.length)
       return feedback.error("اختر مجموعة واحدة على الأقل قبل الإطلاق.")
     if (variables.some((binding) => !binding.value.trim()))
@@ -370,13 +372,14 @@ function CampaignBuilderForm({
           : undefined,
     }
     try {
-      const campaign = campaignId
-        ? await mutations.update.mutateAsync({
-            id: campaignId,
-            draft,
-            expectedVersion: existingCampaign?.version,
-          })
-        : await mutations.create.mutateAsync(draft)
+      const campaign =
+        campaignId && existingCampaign
+          ? await mutations.update.mutateAsync({
+              id: campaignId,
+              draft,
+              expectedVersion: existingCampaign.version,
+            })
+          : await mutations.create.mutateAsync(draft)
       if (launch) {
         await mutations.launch.mutateAsync({
           id: campaign.id,

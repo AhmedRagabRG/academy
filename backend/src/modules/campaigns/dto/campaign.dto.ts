@@ -92,12 +92,6 @@ export class CampaignDraftDto {
   @IsUUID('4', { each: true })
   groupIds: string[] = [];
   @IsOptional()
-  @Transform(list)
-  @IsArray()
-  @ArrayMaxSize(5000)
-  @IsUUID('4', { each: true })
-  contactIds: string[] = [];
-  @IsOptional()
   @IsArray()
   @ArrayMaxSize(30)
   @ValidateNested({ each: true })
@@ -119,7 +113,7 @@ export class CampaignDraftDto {
 }
 
 export class UpdateCampaignDto extends CampaignDraftDto {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) expectedVersion?: number;
+  @Type(() => Number) @IsInt() @Min(1) expectedVersion!: number;
 }
 
 export class CampaignListDto {

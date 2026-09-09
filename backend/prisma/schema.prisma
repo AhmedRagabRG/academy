@@ -1029,7 +1029,12 @@ model Campaign {
   recipients        CampaignRecipient[]
   events            CampaignEvent[]
 
-  @@unique([organizationId, normalizedName])
+  /// A real uniqueness constraint on this pair would block reusing a name
+  /// after the campaign that held it is soft-deleted. The actual guarantee —
+  /// unique among active rows only — is a partial unique index created by
+  /// migration `20260909000000_campaign_active_name_unique`, which Prisma
+  /// cannot express declaratively; this is a plain lookup index instead.
+  @@index([organizationId, normalizedName])
   @@index([organizationId, deletedAt, createdAt, id])
   @@index([organizationId, status, scheduledAt])
   @@index([templateId])

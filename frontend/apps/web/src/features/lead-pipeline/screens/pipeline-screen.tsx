@@ -199,6 +199,7 @@ export function PipelineScreen({
                       feedback.success("تمت إضافة المتابعة")
                     } catch (error) {
                       feedback.error((error as Error).message)
+                      throw error
                     }
                   }}
                 />

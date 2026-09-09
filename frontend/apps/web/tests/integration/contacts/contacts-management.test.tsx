@@ -1,21 +1,35 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ContactsScreen } from "@/features/contacts"
 import { mockContactsService } from "@/features/contacts/services/mock-contacts-service"
+import { ContactsError } from "@/features/contacts/services/contacts-error"
 import { CrmTestProviders } from "./test-helpers"
 
 vi.mock("@/shared/hooks/use-permission", () => ({
   usePermission: () => true,
 }))
 
+const feedbackSpies = { success: vi.fn(), error: vi.fn() }
 vi.mock("@/shared/components/feedback/toast", () => ({
-  feedback: { success: vi.fn(), error: vi.fn() },
+  feedback: {
+    success: (message: string) => feedbackSpies.success(message),
+    error: (message: string) => feedbackSpies.error(message),
+  },
 }))
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   mockContactsService.reset()
+  feedbackSpies.success.mockClear()
+  feedbackSpies.error.mockClear()
 })
 
 const renderScreen = () =>
@@ -121,5 +135,87 @@ describe("Contacts CRM management", () => {
       expect(screen.getByText("+20 12 3456 7890")).toBeInTheDocument()
     )
     expect(screen.getByText("سارة إبراهيم")).toBeInTheDocument()
+  })
+
+  it("adds a note and shows it in the selected contact's detail panel immediately", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+
+    const panel = await screen.findByRole("complementary", {
+      name: "تفاصيل مريم خالد",
+    })
+    const textarea = within(panel).getByLabelText("ملاحظة جديدة")
+    await user.type(textarea, "تابعت العميلة هاتفيًا وستؤكد الموعد غدًا")
+    await user.click(within(panel).getByRole("button", { name: "إضافة ملاحظة" }))
+
+    await waitFor(() =>
+      expect(
+        within(panel).getByText("تابعت العميلة هاتفيًا وستؤكد الموعد غدًا")
+      ).toBeInTheDocument()
+    )
+    expect(feedbackSpies.success).toHaveBeenCalledWith("تمت إضافة الملاحظة")
+    expect(within(panel).getByText("2")).toBeInTheDocument()
+    expect(textarea).toHaveValue("")
+  })
+
+  it("keeps the note text and does not show a success toast on a rejected save", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(mockContactsService, "addNote").mockRejectedValueOnce(
+      new ContactsError("UNAVAILABLE", "تعذر حفظ الملاحظة", undefined, true)
+    )
+    renderScreen()
+
+    const panel = await screen.findByRole("complementary", {
+      name: "تفاصيل مريم خالد",
+    })
+    const textarea = within(panel).getByLabelText("ملاحظة جديدة")
+    await user.type(textarea, "ملاحظة لن تُحفظ")
+    await user.click(within(panel).getByRole("button", { name: "إضافة ملاحظة" }))
+
+    await waitFor(() =>
+      expect(feedbackSpies.error).toHaveBeenCalledWith("تعذر حفظ الملاحظة")
+    )
+    expect(feedbackSpies.success).not.toHaveBeenCalled()
+    expect(textarea).toHaveValue("ملاحظة لن تُحفظ")
+    expect(
+      within(panel).queryByText("ملاحظة لن تُحفظ", { selector: "p" })
+    ).not.toBeInTheDocument()
+    expect(within(panel).getByText("1")).toBeInTheDocument()
+  })
+
+  it("does not send a second request while a note save is already pending", async () => {
+    const user = userEvent.setup()
+    let releaseSave: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      releaseSave = resolve
+    })
+    const originalAddNote = mockContactsService.addNote
+    const spy = vi
+      .spyOn(mockContactsService, "addNote")
+      .mockImplementation(async (id, content) => {
+        await gate
+        return originalAddNote(id, content)
+      })
+    renderScreen()
+
+    const panel = await screen.findByRole("complementary", {
+      name: "تفاصيل مريم خالد",
+    })
+    const textarea = within(panel).getByLabelText("ملاحظة جديدة")
+    const button = within(panel).getByRole("button", { name: "إضافة ملاحظة" })
+    await user.type(textarea, "ملاحظة سريعة")
+    await user.click(button)
+
+    expect(button).toBeDisabled()
+    await user.click(button)
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    releaseSave()
+
+    await waitFor(() => expect(textarea).not.toBeDisabled())
+    expect(button).toBeDisabled()
+    expect(textarea).toHaveValue("")
+    expect(within(panel).getByText("ملاحظة سريعة")).toBeInTheDocument()
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 })

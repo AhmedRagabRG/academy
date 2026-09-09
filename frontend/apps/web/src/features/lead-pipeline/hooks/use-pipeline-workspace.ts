@@ -63,6 +63,16 @@ export function usePipelineWorkspace(initialSelectedId?: string) {
     client.invalidateQueries({ queryKey: pipelineKeys.leadLists() })
 
   /**
+   * Notes and stage moves return the whole updated lead, so the cache is
+   * patched with that value directly instead of waiting on a list refetch.
+   */
+  const writeLead = (lead: Lead) =>
+    client.setQueriesData<Lead[]>(
+      { queryKey: pipelineKeys.leadLists() },
+      (data) => data?.map((item) => (item.id === lead.id ? lead : item))
+    )
+
+  /**
    * A stage move is applied to the cache first: the board is a drag surface,
    * and a card that springs back to its old column while the request is in
    * flight reads as a failed drop.
@@ -109,7 +119,7 @@ export function usePipelineWorkspace(initialSelectedId?: string) {
   const note = useMutation({
     mutationFn: ({ leadId, content }: { leadId: string; content: string }) =>
       pipelineService.addNote(leadId, content),
-    onSuccess: refreshLeads,
+    onSuccess: writeLead,
   })
 
   return {

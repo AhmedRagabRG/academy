@@ -219,10 +219,11 @@ export function LeadDetailPanel({
   onBack: () => void
   onMove: (stageId: LeadStageId) => void
   onUpdate: (draft: LeadDraft) => void
-  onAddNote: (note: string) => void
+  onAddNote: (note: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [note, setNote] = useState("")
+  const [savingNote, setSavingNote] = useState(false)
   const stage = stages.find((item) => item.id === lead.stageId)
   const agent = agents.find((item) => item.id === lead.assignedAgentId)
 
@@ -379,11 +380,19 @@ export function LeadDetailPanel({
         {canUpdate && (
           <form
             className="mt-3"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              if (!note.trim()) return
-              onAddNote(note)
-              setNote("")
+              const content = note.trim()
+              if (!content || savingNote) return
+              setSavingNote(true)
+              try {
+                await onAddNote(content)
+                setNote("")
+              } catch {
+                // The caller already surfaced a toast; keep the text for retry.
+              } finally {
+                setSavingNote(false)
+              }
             }}
           >
             <label htmlFor="lead-note" className="sr-only">
@@ -393,10 +402,16 @@ export function LeadDetailPanel({
               id="lead-note"
               value={note}
               onChange={(event) => setNote(event.target.value)}
+              disabled={savingNote}
               placeholder="أضف نتيجة مكالمة أو خطوة تالية…"
               className="min-h-20 w-full resize-y rounded-lg border border-input bg-background p-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <Button size="sm" className="mt-2" disabled={!note.trim()}>
+            <Button
+              type="submit"
+              size="sm"
+              className="mt-2"
+              disabled={!note.trim() || savingNote}
+            >
               إضافة للسجل
             </Button>
           </form>

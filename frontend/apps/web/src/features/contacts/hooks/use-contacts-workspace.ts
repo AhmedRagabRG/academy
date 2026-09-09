@@ -6,11 +6,16 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
 } from "@tanstack/react-query"
 import { contactsService } from "../services/active-contacts-service"
 import { contactsKeys } from "../services/contacts-query-keys"
-import type { ContactsListQuery } from "../services/contacts-service"
 import type {
+  ContactsListQuery,
+  ContactsPage,
+} from "../services/contacts-service"
+import type {
+  Contact,
   ContactDraft,
   ContactSource,
   CustomFieldType,
@@ -79,6 +84,25 @@ export function useContactsWorkspace(initialContactId?: string) {
   const refreshLookups = () =>
     client.invalidateQueries({ queryKey: contactsKeys.lookups })
 
+  /**
+   * Notes endpoints return the whole updated contact, so the cache is patched
+   * with that value directly instead of waiting on a list refetch.
+   */
+  const writeContact = (contact: Contact) =>
+    client.setQueriesData<InfiniteData<ContactsPage>>(
+      { queryKey: contactsKeys.lists() },
+      (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) =>
+              item.id === contact.id ? contact : item
+            ),
+          })),
+        }
+    )
+
   const createContact = useMutation({
     mutationFn: (draft: ContactDraft) => contactsService.create(draft),
     onSuccess: async (contact) => {
@@ -117,7 +141,7 @@ export function useContactsWorkspace(initialContactId?: string) {
   const addNote = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
       contactsService.addNote(id, content),
-    onSuccess: refreshList,
+    onSuccess: writeContact,
   })
 
   const toggleGroup = useMutation({

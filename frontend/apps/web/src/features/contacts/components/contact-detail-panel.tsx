@@ -36,7 +36,7 @@ interface ContactDetailPanelProps {
   onBack: () => void
   onUpdate: (draft: ContactDraft) => void
   onDelete: () => void
-  onAddNote: (content: string) => void
+  onAddNote: (content: string) => Promise<void>
   onToggleGroup: (groupId: string) => void
   onCreateField: (label: string, type: CustomFieldType) => void
   onCustomValue: (fieldId: string, value: string) => void
@@ -181,6 +181,7 @@ export function ContactDetailPanel({
 }: ContactDetailPanelProps) {
   const [editing, setEditing] = useState(startEditing)
   const [note, setNote] = useState("")
+  const [savingNote, setSavingNote] = useState(false)
   const [addingField, setAddingField] = useState(false)
   const [fieldLabel, setFieldLabel] = useState("")
   const [fieldType, setFieldType] = useState<CustomFieldType>("text")
@@ -421,11 +422,19 @@ export function ContactDetailPanel({
         {allowNotes && (
           <form
             className="mt-3"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault()
-              if (!note.trim()) return
-              onAddNote(note)
-              setNote("")
+              const content = note.trim()
+              if (!content || savingNote) return
+              setSavingNote(true)
+              try {
+                await onAddNote(content)
+                setNote("")
+              } catch {
+                // The caller already surfaced a toast; keep the text for retry.
+              } finally {
+                setSavingNote(false)
+              }
             }}
           >
             <label htmlFor="contact-note" className="sr-only">
@@ -435,10 +444,16 @@ export function ContactDetailPanel({
               id="contact-note"
               value={note}
               onChange={(event) => setNote(event.target.value)}
+              disabled={savingNote}
               placeholder="اكتب ملاحظة داخلية…"
               className="min-h-20 w-full resize-y rounded-lg border border-input bg-background p-3 text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <Button className="mt-2" size="sm" disabled={!note.trim()}>
+            <Button
+              type="submit"
+              className="mt-2"
+              size="sm"
+              disabled={!note.trim() || savingNote}
+            >
               إضافة ملاحظة
             </Button>
           </form>

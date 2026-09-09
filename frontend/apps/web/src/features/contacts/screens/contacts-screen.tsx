@@ -475,6 +475,7 @@ export function ContactsScreen({
                       feedback.success("تمت إضافة الملاحظة")
                     } catch (error) {
                       feedback.error((error as Error).message)
+                      throw error
                     }
                   }}
                   onToggleGroup={(groupId) =>

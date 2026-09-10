@@ -28,6 +28,9 @@ export function extensionFor(mimeType: string): string {
   )
     return '.docx';
   if (mimeType === 'image/png') return '.png';
+  if (mimeType === 'text/plain') return '.txt';
+  if (mimeType === 'text/markdown' || mimeType === 'text/x-markdown')
+    return '.md';
   return '.jpg';
 }
 
@@ -57,7 +60,7 @@ export class LocalStorageService implements StorageService, OnModuleInit {
     if (!file.buffer.length) throw new FileUnreadableException();
     if (file.size > constraint.maxBytes)
       throw new FileTooLargeException(constraint.maxBytes);
-    const mimeType = sniffMimeType(file.buffer);
+    const mimeType = sniffMimeType(file.buffer, file.mimetype);
     if (!mimeType || !constraint.acceptedTypes.includes(mimeType))
       throw new UnsupportedFileTypeException(constraint.acceptedTypes);
     const id = randomUUID();

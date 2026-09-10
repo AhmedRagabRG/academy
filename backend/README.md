@@ -97,3 +97,18 @@ The suite runs serially (`--runInBand`) because the specs share one seeded datab
 > see `test/integration/inbox/inbox-behavior.spec.ts`, which calls `prisma.branch`.
 > Treat a failure here as "this spec needs updating to the current domain", not as a
 > regression, until they have been triaged.
+
+## Vector search (pgvector)
+
+`KnowledgeChunk.embedding` is a `vector(1536)` column with an HNSW index, both created
+in `prisma/migrations/20260910130000_knowledge_chunks`. Prisma cannot model either, so:
+
+- `prisma migrate diff` always reports `[-] Removed index on columns (embedding)`.
+  That is expected drift, not a schema error.
+- **`prisma migrate dev` will propose dropping the HNSW index. Never accept that.**
+  Retrieval still returns correct results without it, by sequential scan, so the
+  regression is invisible until the knowledge base grows.
+
+Dimensions are pinned to 1536 rather than `text-embedding-3-large`'s native 3072
+because pgvector's HNSW implementation caps at 2000; OpenAI performs the truncation
+natively via the `dimensions` parameter.

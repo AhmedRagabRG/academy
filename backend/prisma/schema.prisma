@@ -637,9 +637,43 @@ model KnowledgeSource {
   updatedAt       DateTime              @updatedAt @db.Timestamptz
   createdBy       String?               @db.Uuid
   updatedBy       String?               @db.Uuid
+  chunks          KnowledgeChunk[]
 
   @@index([knowledgeBaseId, status])
   @@index([organizationId, deletedAt])
+}
+
+/// Retrieval chunks with their embeddings.
+///
+/// WARNING: `embedding` is `Unsupported`, and the HNSW index that makes vector
+/// search usable lives only in the migration SQL — Prisma cannot express
+/// `USING hnsw (embedding vector_cosine_ops)`. Two consequences:
+///
+///   * `prisma migrate diff` will always report `[-] Removed index on columns
+///     (embedding)` against a correctly migrated database. That drift is
+///     expected and is NOT a schema error.
+///   * `prisma migrate dev` will generate a migration that DROPS that index.
+///     Never accept such a migration. Retrieval keeps working afterwards, just
+///     via a sequential scan, so the regression is silent until the knowledge
+///     base is large enough to be slow.
+///
+/// Every read and write of `embedding` is raw SQL in KnowledgeRepository.
+model KnowledgeChunk {
+  id              String          @id @default(uuid()) @db.Uuid
+  organizationId  String          @db.Uuid
+  knowledgeBaseId String          @db.Uuid
+  sourceId        String          @db.Uuid
+  source          KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  revision        Int
+  ordinal         Int
+  heading         String?
+  content         String
+  tokenCount      Int
+  embedding       Unsupported("vector(1536)")
+  createdAt       DateTime        @default(now()) @db.Timestamptz
+
+  @@unique([sourceId, revision, ordinal])
+  @@index([knowledgeBaseId, revision])
 }
 
 model AiAgent {

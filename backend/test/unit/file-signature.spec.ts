@@ -19,4 +19,19 @@ describe('file signatures', () => {
   ])('detects %s', (buffer, expected) =>
     expect(sniffMimeType(buffer as Buffer)).toBe(expected),
   );
+
+  it('accepts valid UTF-8 text only when explicitly declared', () => {
+    expect(sniffMimeType(Buffer.from('مرحبا'), 'text/plain')).toBe(
+      'text/plain',
+    );
+    expect(sniffMimeType(Buffer.from('# Heading'), 'text/markdown')).toBe(
+      'text/markdown',
+    );
+    expect(sniffMimeType(Buffer.from('plain but undeclared'))).toBeNull();
+  });
+
+  it('rejects invalid UTF-8 and NUL-containing files declared as text', () => {
+    expect(sniffMimeType(Buffer.from([0xff, 0xfe]), 'text/plain')).toBeNull();
+    expect(sniffMimeType(Buffer.from([0x61, 0x00]), 'text/plain')).toBeNull();
+  });
 });

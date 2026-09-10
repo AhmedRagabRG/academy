@@ -8,7 +8,8 @@ export type UploadPurpose =
   | 'admission-document'
   | 'expense-attachment'
   | 'ticket-attachment'
-  | 'inbox-attachment';
+  | 'inbox-attachment'
+  | 'knowledge-source';
 export interface UploadedFile {
   originalname: string;
   mimetype: string;

@@ -6359,5 +6359,31 @@ interfaces under <code>apps/web/src/features/*/services/*-service.ts</code>.
   <code>GET /api/v1/finance/lookups</code> publishes the selectable purposes. Adding a fee type is a
   lookup change and MUST NOT require editing finance business logic.</p>
 </section>
+<section id="ai-knowledge-base-contract">
+  <h2>AI Agent — knowledge-base contract</h2>
+  <p>All routes below are under <code>/api/v1/ai/knowledge-bases</code>. Reads require
+  <code>ai.knowledge.view</code>; writes require <code>ai.knowledge.manage</code>. Knowledge-base
+  deletion is a soft archive. Source deletion sets <code>deletedAt</code>; deleted and
+  <code>internal</code> sources are never eligible for customer-facing retrieval.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Path</th><th>Request</th><th>Response / behavior</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge get">GET</span></td><td><code>/</code></td><td>—</td><td>Active/inactive bases with <code>sourceCount</code>, ordered by name.</td></tr>
+      <tr><td><span class="badge post">POST</span></td><td><code>/</code></td><td><code>{ name, description? }</code></td><td>Creates a base; name is 2–160 characters.</td></tr>
+      <tr><td><span class="badge patch">PATCH</span></td><td><code>/:id</code></td><td><code>{ expectedVersion, name?, description?, status?: "active" | "inactive" }</code></td><td>Returns the updated base; stale writes return <code>VERSION_CONFLICT</code>.</td></tr>
+      <tr><td><span class="badge del">DELETE</span></td><td><code>/:id</code></td><td><code>{ expectedVersion }</code></td><td><code>204</code>; archives the base without destroying its sources.</td></tr>
+      <tr><td><span class="badge get">GET</span></td><td><code>/:id/sources</code></td><td>—</td><td>Non-deleted sources with ingestion status, active revision, chunk count, token estimate and failure message.</td></tr>
+      <tr><td><span class="badge post">POST</span></td><td><code>/:id/sources</code></td><td>JSON <code>{ kind: "text", title, rawText, visibility? }</code>, or multipart <code>file</code> plus optional <code>title</code>/<code>visibility</code></td><td>Creates a <code>pending</code> source and queues ingestion when the AI queue is enabled.</td></tr>
+      <tr><td><span class="badge del">DELETE</span></td><td><code>/sources/:sourceId</code></td><td>—</td><td><code>204</code>; soft-deletes the source immediately from retrieval.</td></tr>
+      <tr><td><span class="badge post">POST</span></td><td><code>/sources/:sourceId/reindex</code></td><td>—</td><td>Sets <code>pending</code>, queues a versioned re-index, and returns the source.</td></tr>
+    </tbody>
+  </table></div>
+  <p>File sources accept PDF, DOCX, UTF-8 TXT, and Markdown up to 20 MiB. Wire values are
+  lowercase: source kinds <code>file</code>/<code>text</code>, visibility
+  <code>customer-facing</code>/<code>internal</code>, and statuses <code>pending</code>,
+  <code>processing</code>, <code>ready</code>, or <code>failed</code>. Re-indexing builds a new
+  revision and switches it atomically, so the prior ready revision remains searchable if the new
+  attempt fails.</p>
+</section>
 </body>
 </html>

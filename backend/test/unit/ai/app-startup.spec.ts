@@ -3,6 +3,9 @@ import { Test } from '@nestjs/testing';
 jest.mock(
   '@nestjs/bullmq',
   () => ({
+    InjectQueue: jest.fn(() => () => undefined),
+    Processor: jest.fn(() => () => undefined),
+    WorkerHost: class {},
     BullModule: {
       forRoot: jest.fn(() => {
         throw new Error('BullMQ registration must remain inert');

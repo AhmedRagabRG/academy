@@ -10,6 +10,15 @@ import {
   validateSync,
 } from 'class-validator';
 
+/**
+ * Numeric properties MUST carry an explicit `: number` annotation, even when an
+ * initializer already implies it. `emitDecoratorMetadata` derives `design:type`
+ * from the annotation alone; with none it emits `Object`, and
+ * `enableImplicitConversion` then leaves the value as the raw string dotenv
+ * produced, so `@IsInt()` rejects it. The failure only appears once the variable
+ * is actually set in `.env` — an unset variable falls back to the initializer,
+ * which is already a number — so it hides through every test that omits it.
+ */
 class EnvironmentVariables {
   @IsIn(['development', 'test', 'production']) NODE_ENV!: string;
   @IsInt() @Min(1) PORT!: number;
@@ -40,19 +49,19 @@ class EnvironmentVariables {
   @IsString() META_INSTAGRAM_ACCESS_TOKEN = '';
   @IsString() META_INSTAGRAM_ACCOUNT_ID = '';
   @IsBooleanString() CAMPAIGN_DISPATCH_ENABLED = 'true';
-  @IsInt() @Min(1000) CAMPAIGN_TICK_MS = 5000;
-  @IsInt() @Min(1) CAMPAIGN_MAX_PER_TICK = 100;
+  @IsInt() @Min(1000) CAMPAIGN_TICK_MS: number = 5000;
+  @IsInt() @Min(1) CAMPAIGN_MAX_PER_TICK: number = 100;
   @IsString() REDIS_URL = '';
   @IsString() OPENAI_API_KEY = '';
   @IsString() OPENAI_CHAT_MODEL = 'gpt-4o';
   @IsString() OPENAI_EMBEDDING_MODEL = 'text-embedding-3-large';
-  @IsInt() @Min(1) OPENAI_EMBEDDING_DIMENSIONS = 1536;
-  @IsInt() @Min(1) OPENAI_REQUEST_TIMEOUT_MS = 30000;
-  @IsInt() @Min(0) OPENAI_MAX_RETRIES = 2;
+  @IsInt() @Min(1) OPENAI_EMBEDDING_DIMENSIONS: number = 1536;
+  @IsInt() @Min(1) OPENAI_REQUEST_TIMEOUT_MS: number = 30000;
+  @IsInt() @Min(0) OPENAI_MAX_RETRIES: number = 2;
   @IsBooleanString() AI_ENABLED = 'false';
   @IsBooleanString() AI_QUEUE_ENABLED = 'false';
   @IsBooleanString() AI_RESUME_SWEEP_ENABLED = 'true';
-  @IsInt() @Min(1000) AI_RESUME_SWEEP_MS = 30000;
+  @IsInt() @Min(1000) AI_RESUME_SWEEP_MS: number = 30000;
 }
 
 export function validate(

@@ -200,3 +200,26 @@ describe('knowledge ingestion and retrieval', () => {
     expect(revisions).toEqual([{ revision: 2 }]);
   });
 });
+
+/**
+ * The HNSW index lives only in migration SQL, because Prisma cannot express
+ * `USING hnsw (embedding vector_cosine_ops)`. That makes it invisible to the
+ * schema and a standing target for `prisma migrate dev`, which reads it as
+ * drift and proposes dropping it — which has already happened once.
+ *
+ * Losing it is silent: every assertion above still passes, because a sequential
+ * scan returns the same rows in the same order. Only the query plan changes.
+ * So this asserts the index itself rather than any behaviour it produces.
+ */
+describe('vector index', () => {
+  it('keeps the HNSW index on KnowledgeChunk.embedding', async () => {
+    const rows = await prisma.$queryRaw<Array<{ indexdef: string }>>`
+      SELECT indexdef FROM pg_indexes
+      WHERE tablename = 'KnowledgeChunk'
+        AND indexname = 'knowledge_chunk_embedding_idx'
+    `;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.indexdef).toContain('hnsw');
+    expect(rows[0]?.indexdef).toContain('vector_cosine_ops');
+  });
+});

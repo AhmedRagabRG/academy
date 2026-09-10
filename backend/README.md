@@ -79,3 +79,21 @@ Configure the same public HTTPS webhook URL in the Meta app for both products. S
 to message events and Messenger to page messaging events. The GET request performs Meta's webhook
 challenge; POST requests require a valid `X-Hub-Signature-256` signature. Run the Inbox migrations
 and seed so the `whatsapp` and `messenger` platform records exist before enabling the webhook.
+
+## Integration tests
+
+```bash
+cp .env.test.example .env.test   # point DATABASE_URL at a dedicated test database
+npx prisma migrate deploy        # with DATABASE_URL from .env.test
+npx tsx prisma/seed.ts           # the suite asserts against seeded data
+npm run test:integration
+```
+
+The suite runs serially (`--runInBand`) because the specs share one seeded database.
+
+> **Known state:** a number of these specs predate the removal of the academic/ERP
+> modules and still reference dropped tables such as `Branch`. They fail against the
+> current schema. They had no runner wired until now, so the drift went unnoticed —
+> see `test/integration/inbox/inbox-behavior.spec.ts`, which calls `prisma.branch`.
+> Treat a failure here as "this spec needs updating to the current domain", not as a
+> regression, until they have been triaged.

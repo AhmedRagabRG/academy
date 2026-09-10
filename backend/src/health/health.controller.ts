@@ -7,6 +7,7 @@ import {
   ApiErrorResponses,
 } from '../shared/swagger/api-envelope.decorator';
 import { PrismaHealthIndicator } from './prisma.health-indicator';
+import { RedisHealthIndicator } from './redis.health-indicator';
 class HealthDto {
   @ApiProperty() status!: string;
 }
@@ -15,6 +16,7 @@ export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
     private readonly database: PrismaHealthIndicator,
+    private readonly redis: RedisHealthIndicator,
   ) {}
   @Get()
   @Public()
@@ -25,6 +27,7 @@ export class HealthController {
     return this.health.check([
       () => Promise.resolve({ api: { status: 'up' } }),
       () => this.database.isHealthy('database'),
+      () => this.redis.isHealthy('redis'),
     ]);
   }
 }

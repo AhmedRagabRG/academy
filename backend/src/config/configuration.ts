@@ -1,13 +1,16 @@
 import { registerAs } from '@nestjs/config';
 import type {
+  AiConfig,
   AppConfig,
+  CampaignsConfig,
   CookieConfig,
   CorsConfig,
   DatabaseConfig,
   JwtConfig,
-  CampaignsConfig,
   MetaConfig,
+  OpenAiConfig,
   PasswordPolicyConfig,
+  RedisConfig,
   SeedConfig,
   SwaggerConfig,
   UploadConfig,
@@ -71,6 +74,23 @@ export const campaignsConfig = registerAs('campaigns', (): CampaignsConfig => ({
   tickMs: Number(process.env.CAMPAIGN_TICK_MS ?? 5000),
   maxPerTick: Number(process.env.CAMPAIGN_MAX_PER_TICK ?? 100),
 }));
+export const redisConfig = registerAs('redis', (): RedisConfig => ({
+  url: process.env.REDIS_URL ?? '',
+}));
+export const openaiConfig = registerAs('openai', (): OpenAiConfig => ({
+  apiKey: process.env.OPENAI_API_KEY ?? '',
+  chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o',
+  embeddingModel:
+    process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-large',
+  // HNSW indexes support at most 2,000 dimensions, so request native truncation.
+  embeddingDimensions: Number(process.env.OPENAI_EMBEDDING_DIMENSIONS ?? 1536),
+  requestTimeoutMs: Number(process.env.OPENAI_REQUEST_TIMEOUT_MS ?? 30000),
+  maxRetries: Number(process.env.OPENAI_MAX_RETRIES ?? 2),
+}));
+export const aiConfig = registerAs('ai', (): AiConfig => ({
+  enabled: process.env.AI_ENABLED === 'true',
+  queueEnabled: process.env.AI_QUEUE_ENABLED === 'true',
+}));
 export const configuration = [
   appConfig,
   databaseConfig,
@@ -83,4 +103,7 @@ export const configuration = [
   passwordPolicyConfig,
   metaConfig,
   campaignsConfig,
+  redisConfig,
+  openaiConfig,
+  aiConfig,
 ];

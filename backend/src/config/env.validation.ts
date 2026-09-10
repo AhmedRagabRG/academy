@@ -42,6 +42,15 @@ class EnvironmentVariables {
   @IsBooleanString() CAMPAIGN_DISPATCH_ENABLED = 'true';
   @IsInt() @Min(1000) CAMPAIGN_TICK_MS = 5000;
   @IsInt() @Min(1) CAMPAIGN_MAX_PER_TICK = 100;
+  @IsString() REDIS_URL = '';
+  @IsString() OPENAI_API_KEY = '';
+  @IsString() OPENAI_CHAT_MODEL = 'gpt-4o';
+  @IsString() OPENAI_EMBEDDING_MODEL = 'text-embedding-3-large';
+  @IsInt() @Min(1) OPENAI_EMBEDDING_DIMENSIONS = 1536;
+  @IsInt() @Min(1) OPENAI_REQUEST_TIMEOUT_MS = 30000;
+  @IsInt() @Min(0) OPENAI_MAX_RETRIES = 2;
+  @IsBooleanString() AI_ENABLED = 'false';
+  @IsBooleanString() AI_QUEUE_ENABLED = 'false';
 }
 
 export function validate(

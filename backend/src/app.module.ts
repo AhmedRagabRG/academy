@@ -18,6 +18,8 @@ import { InboxModule } from './modules/inbox/inbox.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { LeadPipelineModule } from './modules/lead-pipeline/lead-pipeline.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { AiModule } from './modules/ai/ai.module';
+import { QueueModule } from './queue/queue.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { CampaignsModule } from './modules/campaigns/campaigns.module';
     ContactsModule,
     LeadPipelineModule,
     CampaignsModule,
+    QueueModule.register(),
+    AiModule,
   ],
   providers: [
     { provide: APP_GUARD, useExisting: AuthGuard },

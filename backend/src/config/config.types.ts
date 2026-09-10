@@ -53,3 +53,18 @@ export interface CampaignsConfig {
   /** Hard ceiling per tick, whatever a single campaign's throttle asks for. */
   maxPerTick: number;
 }
+export interface RedisConfig {
+  url: string;
+}
+export interface OpenAiConfig {
+  apiKey: string;
+  chatModel: string;
+  embeddingModel: string;
+  embeddingDimensions: number;
+  requestTimeoutMs: number;
+  maxRetries: number;
+}
+export interface AiConfig {
+  enabled: boolean;
+  queueEnabled: boolean;
+}

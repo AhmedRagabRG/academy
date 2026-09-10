@@ -9,10 +9,13 @@ const AI_AGENT_ID = '00000000-0000-4000-8000-00000000a103';
 const AI_ACCOUNT_EMAIL = 'ai-agent@internal.alsalam.academy';
 const AI_PERMISSIONS = [
   'tickets.create',
+  'contacts.view',
   'contacts.update',
   'contacts.notes.manage',
   'inbox.reply',
 ] as const;
+
+const SUPPORT_TEAM_NAME = 'فريق الدعم';
 
 export async function seedAiAgent(prisma: PrismaClient): Promise<void> {
   const organization = await prisma.organization.findFirstOrThrow({
@@ -61,7 +64,9 @@ export async function seedAiAgent(prisma: PrismaClient): Promise<void> {
       displayName: 'المساعد الذكي',
       normalizedDisplayName: normalizeArabic('المساعد الذكي'),
       status: 'ACTIVE',
-      organizationWide: false,
+      // The AI acts on whatever customer contact its conversation belongs to,
+      // so org-wide visibility is part of its role, not a permission grant.
+      organizationWide: true,
     },
     create: {
       id: AI_ACCOUNT_ID,
@@ -70,7 +75,7 @@ export async function seedAiAgent(prisma: PrismaClient): Promise<void> {
       displayName: 'المساعد الذكي',
       normalizedDisplayName: normalizeArabic('المساعد الذكي'),
       status: 'ACTIVE',
-      organizationWide: false,
+      organizationWide: true,
     },
   });
   await prisma.accountRole.deleteMany({ where: { accountId: account.id } });
@@ -102,7 +107,65 @@ export async function seedAiAgent(prisma: PrismaClient): Promise<void> {
       handoffMessage: 'سيكمل أحد موظفينا مساعدتك في أقرب وقت.',
       allowedTools: [],
       allowedCrmFields: [],
+      dataCollectionFields: [
+        {
+          key: 'name',
+          label: 'الاسم',
+          required: true,
+          promptHint: 'اسأل العميل عن اسمه إن لم يكون مسجلًا',
+        },
+        {
+          key: 'email',
+          label: 'البريد الإلكتروني',
+          required: false,
+          promptHint: 'اسأل عن البريد الإلكتروني عند الحاجة',
+        },
+      ],
       serviceAccountId: account.id,
     },
   });
+
+  // Seed starter routing rules without ever clobbering admin edits: the
+  // update branch is empty on purpose. `complaint` is deliberately left
+  // unassigned so an escalation always has a valid category to land in.
+  const supportTeam = await prisma.ticketTeam.findFirst({
+    where: { organizationId: organization.id, name: SUPPORT_TEAM_NAME },
+    select: { id: true },
+  });
+  const starterRules = [
+    {
+      category: 'general-question',
+      categoryLabel: 'استفسار عام',
+      teamId: supportTeam?.id ?? null,
+      priority: 'MEDIUM' as const,
+      displayOrder: 1,
+    },
+    {
+      category: 'enrollment',
+      categoryLabel: 'طلب تسجيل في دورة',
+      teamId: supportTeam?.id ?? null,
+      priority: 'HIGH' as const,
+      displayOrder: 2,
+    },
+    {
+      category: 'complaint',
+      categoryLabel: 'شكوى',
+      teamId: null,
+      priority: 'HIGH' as const,
+      displayOrder: 3,
+    },
+  ];
+  for (const rule of starterRules) {
+    await prisma.aiTicketRoutingRule.upsert({
+      where: {
+        agentId_category: { agentId: AI_AGENT_ID, category: rule.category },
+      },
+      update: {},
+      create: {
+        ...rule,
+        organizationId: organization.id,
+        agentId: AI_AGENT_ID,
+      },
+    });
+  }
 }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../../prisma/generated/client';
 import {
   DomainException,
   NotFoundException,
@@ -30,6 +31,19 @@ export class AiAgentService {
       fallbackMessage: agent.fallbackMessage,
       handoffMessage: agent.handoffMessage,
       knowledgeBaseIds: agent.knowledgeBases.map((row) => row.knowledgeBaseId),
+      workingHours: agent.workingHours as Record<string, string> | null,
+      outsideHoursBehaviour: agent.outsideHoursBehaviour,
+      allowedTools: agent.allowedTools,
+      allowedCrmFields: agent.allowedCrmFields,
+      dataCollectionFields: agent.dataCollectionFields,
+      routingRules: agent.ticketRoutingRules.map((rule) => ({
+        category: rule.category,
+        categoryLabel: rule.categoryLabel,
+        teamId: rule.teamId,
+        priority: rule.priority,
+        active: rule.active,
+        displayOrder: rule.displayOrder,
+      })),
       version: agent.version,
       updatedAt: agent.updatedAt.toISOString(),
     };
@@ -75,11 +89,34 @@ export class AiAgentService {
         );
     }
 
-    const { expectedVersion, knowledgeBaseIds, ...fields } = dto;
+    const {
+      expectedVersion,
+      knowledgeBaseIds,
+      dataCollectionFields,
+      workingHours,
+      ...fields
+    } = dto;
     const updated = await this.repository.update(
       id,
       expectedVersion,
-      { ...fields, updatedBy: caller.accountId },
+      {
+        ...fields,
+        // Validated by the DTO to [{key, label, ...}] or absent.
+        ...(dataCollectionFields !== undefined
+          ? {
+              dataCollectionFields:
+                dataCollectionFields as Prisma.InputJsonValue,
+            }
+          : {}),
+        // null means 24/7 and must become the Json-null input, not a literal.
+        ...(workingHours !== undefined
+          ? {
+              workingHours:
+                workingHours === null ? Prisma.DbNull : workingHours,
+            }
+          : {}),
+        updatedBy: caller.accountId,
+      },
       knowledgeBaseIds,
       organizationId,
     );

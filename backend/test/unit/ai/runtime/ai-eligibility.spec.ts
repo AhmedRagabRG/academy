@@ -7,6 +7,9 @@ const agent = (overrides: Record<string, unknown> = {}) => ({
   enabled: true,
   enabledPlatformCodes: ['whatsapp'],
   knowledgeBases: [{ knowledgeBaseId: 'kb-1' }],
+  ticketRoutingRules: [],
+  workingHours: null,
+  outsideHoursBehaviour: 'silent',
   ...overrides,
 });
 
@@ -27,6 +30,9 @@ const harness = (options: {
   resumeCount?: number;
 }) => {
   const db = {
+    generalSettings: {
+      findFirst: jest.fn().mockResolvedValue({ timeZone: 'Africa/Cairo' }),
+    },
     inboxConversation: {
       findFirst: jest
         .fn()

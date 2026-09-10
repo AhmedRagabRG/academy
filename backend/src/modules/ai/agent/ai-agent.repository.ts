@@ -4,6 +4,9 @@ import { PrismaService } from '../../../database/prisma.service';
 
 const agentInclude = {
   knowledgeBases: { select: { knowledgeBaseId: true } },
+  ticketRoutingRules: {
+    orderBy: { displayOrder: 'asc' },
+  },
 } satisfies Prisma.AiAgentInclude;
 export type AiAgentAggregate = Prisma.AiAgentGetPayload<{
   include: typeof agentInclude;

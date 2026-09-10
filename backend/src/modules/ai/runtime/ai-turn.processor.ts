@@ -67,6 +67,39 @@ export class AiTurnProcessor extends WorkerHost {
       data: { status: 'RUNNING', turnSeqAtStart: check.turnSeq },
     });
 
+    // Outside working hours with fallback behaviour: the configured fallback
+    // is sent deterministically — no model is invoked, no retrieval, no spend.
+    if (check.outsideHoursFallback) {
+      const sent = await this.inbox.sendAiReply({
+        conversationId,
+        agentId: check.agent.id,
+        serviceAccountId: check.agent.serviceAccountId,
+        agentDisplayName: check.agent.name,
+        aiTurnId,
+        body: check.agent.fallbackMessage,
+        expectedTurnSeq: check.turnSeq,
+      });
+      await this.finish(
+        aiTurnId,
+        sent.status === 'failed' ? 'FAILED' : 'REPLIED',
+        {
+          messageId: sent.messageId ?? null,
+          skipReason: 'outside-hours',
+          latencyMs: Math.round(performance.now() - startedAt),
+        },
+      );
+      await this.recordOutcome(conversationId, sent.status !== 'failed');
+      if (sent.status === 'sent' && check.agent.escalateOnFallback)
+        await this.pauseForHandoff(
+          conversationId,
+          check.agent,
+          aiTurnId,
+          sent.messageId ?? null,
+          'خارج ساعات العمل — حُوّلت المحادثة إلى موظف',
+        );
+      return;
+    }
+
     try {
       const [{ messages, injectionSuspected, customerAsked }, contact] =
         await Promise.all([
@@ -85,6 +118,28 @@ export class AiTurnProcessor extends WorkerHost {
       }
 
       const agent = check.agent;
+      // dataCollectionFields is a Json column, so a row written before the DTO
+      // existed — or edited directly — can hold anything. Coercing with String()
+      // would put a literal "[object Object]" into the prompt, so malformed
+      // entries are dropped instead of described to the model.
+      const collectionFields = Array.isArray(agent.dataCollectionFields)
+        ? agent.dataCollectionFields.flatMap((entry) => {
+            if (
+              typeof entry !== 'object' ||
+              entry === null ||
+              Array.isArray(entry)
+            )
+              return [];
+            const { key, label } = entry as Record<string, unknown>;
+            if (typeof key !== 'string' || !key.trim()) return [];
+            return [
+              {
+                key,
+                label: typeof label === 'string' && label.trim() ? label : key,
+              },
+            ];
+          })
+        : [];
       const result = await this.orchestrator.run({
         system: buildSystemPrompt(agent, contact),
         history: messages,
@@ -92,18 +147,28 @@ export class AiTurnProcessor extends WorkerHost {
           organizationId: check.organizationId,
           conversationId,
           agentId: agent.id,
+          serviceAccountId: agent.serviceAccountId,
           aiTurnId,
           customerId: check.customerId,
           contactId: check.contactId,
           knowledgeBaseIds: check.knowledgeBaseIds,
           retrievalTopK: agent.retrievalTopK,
           retrievalMinScore: agent.retrievalMinScore,
+          allowedCrmFields: agent.allowedCrmFields,
+          collectionFields,
+          routingCategories: agent.ticketRoutingRules.map((rule) => ({
+            category: rule.category,
+            label: rule.categoryLabel,
+          })),
+          routingMinConfidence: agent.routingMinConfidence,
         },
         maxTokens: Math.ceil(agent.maxResponseChars / 2),
         temperature: agent.temperature,
         fallbackMessage: agent.fallbackMessage,
+        handoffMessage: agent.handoffMessage,
         maxToolCalls: agent.maxToolCallsPerTurn,
         customerAsked,
+        allowedToolNames: agent.allowedTools,
       });
 
       const sent = await this.inbox.sendAiReply({
@@ -142,6 +207,21 @@ export class AiTurnProcessor extends WorkerHost {
           message: 'turn fenced out; a human or a newer message won the race',
         });
         await this.followUpFencedTurn(conversationId, aiTurnId);
+      } else if (sent.status === 'sent' && result.handoffRequested) {
+        await this.pauseForHandoff(
+          conversationId,
+          agent,
+          aiTurnId,
+          sent.messageId ?? null,
+          'طلب العميل تحويل المحادثة إلى موظف',
+        );
+      } else if (sent.status === 'sent' && result.escalated) {
+        await this.pauseForEscalation(
+          conversationId,
+          agent,
+          aiTurnId,
+          sent.messageId ?? null,
+        );
       } else if (
         sent.status === 'sent' &&
         result.usedFallback &&
@@ -151,27 +231,13 @@ export class AiTurnProcessor extends WorkerHost {
         // have the same admission — and the same promise to fetch a human —
         // repeated on every following message, so the handoff must actually
         // hand off: pause with no auto-resume, exactly like an escalation.
-        await this.db.conversationAiState.updateMany({
-          where: { conversationId, mode: 'AUTO' },
-          data: {
-            mode: 'PAUSED',
-            pausedReason: 'HANDOFF',
-            pausedAt: new Date(),
-            resumeAt: null,
-            turnSeq: { increment: 1 },
-            version: { increment: 1 },
-          },
-        });
-        await this.db.inboxSystemEvent.create({
-          data: {
-            conversationId,
-            type: 'ai.handoff',
-            label: 'لم يعرف المساعد الإجابة فحوّل المحادثة إلى موظف',
-            actorId: agent.serviceAccountId,
-            actorName: agent.name,
-            payload: { aiTurnId, messageId: sent.messageId ?? null },
-          },
-        });
+        await this.pauseForHandoff(
+          conversationId,
+          agent,
+          aiTurnId,
+          sent.messageId ?? null,
+          'لم يعرف المساعد الإجابة فحوّل المحادثة إلى موظف',
+        );
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -247,6 +313,70 @@ export class AiTurnProcessor extends WorkerHost {
     await this.recordOutcome(conversationId, sent.status !== 'failed');
     if (sent.status === 'suppressed')
       await this.followUpFencedTurn(conversationId, turn.id);
+  }
+
+  /**
+   * Pausing happens AFTER the reply is committed and dispatched: mid-turn it
+   * would trip the fencing guard and suppress the very message that explains
+   * the handoff. No auto-resume — a human must take it from here.
+   */
+  private async pauseForHandoff(
+    conversationId: string,
+    agent: { serviceAccountId: string; name: string },
+    aiTurnId: string,
+    messageId: string | null,
+    label: string,
+  ): Promise<void> {
+    await this.db.conversationAiState.updateMany({
+      where: { conversationId, mode: 'AUTO' },
+      data: {
+        mode: 'PAUSED',
+        pausedReason: 'HANDOFF',
+        pausedAt: new Date(),
+        resumeAt: null,
+        turnSeq: { increment: 1 },
+        version: { increment: 1 },
+      },
+    });
+    await this.db.inboxSystemEvent.create({
+      data: {
+        conversationId,
+        type: 'ai.handoff',
+        label,
+        actorId: agent.serviceAccountId,
+        actorName: agent.name,
+        payload: { aiTurnId, messageId },
+      },
+    });
+  }
+
+  private async pauseForEscalation(
+    conversationId: string,
+    agent: { serviceAccountId: string; name: string },
+    aiTurnId: string,
+    messageId: string | null,
+  ): Promise<void> {
+    await this.db.conversationAiState.updateMany({
+      where: { conversationId, mode: 'AUTO' },
+      data: {
+        mode: 'PAUSED',
+        pausedReason: 'ESCALATED',
+        pausedAt: new Date(),
+        resumeAt: null,
+        turnSeq: { increment: 1 },
+        version: { increment: 1 },
+      },
+    });
+    await this.db.inboxSystemEvent.create({
+      data: {
+        conversationId,
+        type: 'ai.ticket.created',
+        label: 'أنشأ المساعد تذكرة وحوّل المحادثة إلى موظف',
+        actorId: agent.serviceAccountId,
+        actorName: agent.name,
+        payload: { aiTurnId, messageId },
+      },
+    });
   }
 
   /**

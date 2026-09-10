@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { KnowledgeRepository } from '../knowledge/knowledge.repository';
+import type { ChatTool } from '../llm/openai.client';
 import { OpenAiClient } from '../llm/openai.client';
 import type { AgentTool, AiRunContext, ToolResult } from './tool.contract';
 import { jsonSchema } from './tool.contract';
@@ -11,23 +12,26 @@ interface KbSearchInput {
 @Injectable()
 export class KbSearchTool implements AgentTool {
   readonly name = 'kb_search';
-  readonly definition = {
-    type: 'function' as const,
-    function: {
-      name: 'kb_search',
-      description:
-        'ابحث في قاعدة معرفة الأكاديمية عن معلومات تخص سؤال العميل. استخدمها قبل أي إجابة تتضمن حقائق مثل الرسوم أو المواعيد أو السياسات.',
-      parameters: jsonSchema(
-        {
-          query: {
-            type: 'string',
-            description: 'سؤال العميل أو العبارة المراد البحث عنها',
+
+  definition(_context: AiRunContext): ChatTool {
+    return {
+      type: 'function',
+      function: {
+        name: 'kb_search',
+        description:
+          'ابحث في قاعدة معرفة الأكاديمية عن معلومات تخص سؤال العميل. استخدمها قبل أي إجابة تتضمن حقائق مثل الرسوم أو المواعيد أو السياسات.',
+        parameters: jsonSchema(
+          {
+            query: {
+              type: 'string',
+              description: 'سؤال العميل أو العبارة المراد البحث عنها',
+            },
           },
-        },
-        ['query'],
-      ),
-    },
-  };
+          ['query'],
+        ),
+      },
+    };
+  }
 
   constructor(
     private readonly knowledge: KnowledgeRepository,

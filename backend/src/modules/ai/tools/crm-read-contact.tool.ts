@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { ChatTool } from '../llm/openai.client';
 import { PrismaService } from '../../../database/prisma.service';
 import type { AgentTool, AiRunContext, ToolResult } from './tool.contract';
 import { jsonSchema } from './tool.contract';
@@ -12,15 +13,18 @@ import { jsonSchema } from './tool.contract';
 @Injectable()
 export class CrmReadContactTool implements AgentTool {
   readonly name = 'crm_read_contact';
-  readonly definition = {
-    type: 'function' as const,
-    function: {
-      name: 'crm_read_contact',
-      description:
-        'اقرأ بيانات العميل الحالي المسجلة لدينا (الاسم، الهاتف، البريد، آخر الملاحظات) لتتجنب سؤاله عمّا نعرفه بالفعل.',
-      parameters: jsonSchema({}, []),
-    },
-  };
+
+  definition(_context: AiRunContext): ChatTool {
+    return {
+      type: 'function',
+      function: {
+        name: 'crm_read_contact',
+        description:
+          'اقرأ بيانات العميل الحالي المسجلة لدينا (الاسم، الهاتف، البريد، آخر الملاحظات) لتتجنب سؤاله عمّا نعرفه بالفعل.',
+        parameters: jsonSchema({}, []),
+      },
+    };
+  }
 
   constructor(private readonly db: PrismaService) {}
 

@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
-import {
-  OpenAiClient,
-  type ChatMessage,
-  type ChatTool,
-} from '../llm/openai.client';
+import { OpenAiClient, type ChatMessage } from '../llm/openai.client';
+import { CrmAddNoteTool } from '../tools/crm-add-note.tool';
 import { CrmReadContactTool } from '../tools/crm-read-contact.tool';
+import { CrmUpdateContactTool } from '../tools/crm-update-contact.tool';
+import { CreateTicketTool } from '../tools/create-ticket.tool';
+import { HandoffToHumanTool } from '../tools/handoff-to-human.tool';
 import { KbSearchTool } from '../tools/kb-search.tool';
+import { RecordCollectedFieldsTool } from '../tools/record-collected-fields.tool';
 import type { AgentTool, AiRunContext } from '../tools/tool.contract';
 
 export interface OrchestratorResult {
@@ -17,6 +18,10 @@ export interface OrchestratorResult {
   promptTokens: number;
   completionTokens: number;
   toolCalls: number;
+  /** The model asked to hand off — the processor pauses after sending. */
+  handoffRequested: boolean;
+  /** A ticket was created — the processor pauses as ESCALATED after sending. */
+  escalated: boolean;
 }
 
 /** Bounded so a looping model cannot spend without limit on one turn. */
@@ -32,12 +37,21 @@ export class AiOrchestratorService {
     private readonly db: PrismaService,
     kbSearch: KbSearchTool,
     crmRead: CrmReadContactTool,
+    crmUpdate: CrmUpdateContactTool,
+    crmAddNote: CrmAddNoteTool,
+    recordCollected: RecordCollectedFieldsTool,
+    createTicket: CreateTicketTool,
+    handoff: HandoffToHumanTool,
   ) {
-    this.tools = [kbSearch, crmRead];
-  }
-
-  private definitions(): ChatTool[] {
-    return this.tools.map((tool) => tool.definition);
+    this.tools = [
+      kbSearch,
+      crmRead,
+      crmUpdate,
+      crmAddNote,
+      recordCollected,
+      createTicket,
+      handoff,
+    ];
   }
 
   /**
@@ -56,22 +70,35 @@ export class AiOrchestratorService {
     maxTokens: number;
     temperature: number;
     fallbackMessage: string;
+    handoffMessage: string;
     maxToolCalls: number;
     /** The customer's newest message asked something; a factual reply must be grounded. */
     customerAsked?: boolean;
+    /**
+     * Admin allow-list for this run. An empty configuration keeps the Phase 5
+     * read-only defaults, so an agent configured before write tools existed
+     * stays exactly as read-only as it was.
+     */
+    allowedToolNames?: string[];
   }): Promise<OrchestratorResult> {
+    const allowed = input.allowedToolNames?.length
+      ? input.allowedToolNames
+      : ['kb_search', 'crm_read_contact'];
+    const available = this.tools.filter((tool) => allowed.includes(tool.name));
     const messages: ChatMessage[] = [...input.history];
     const citedChunkIds: string[] = [];
     let promptTokens = 0;
     let completionTokens = 0;
     let toolCalls = 0;
     let searched = false;
+    let handoffRequested = false;
+    let escalated = false;
 
     for (let iteration = 0; iteration < MAX_ITERATIONS; iteration += 1) {
       const result = await this.openAi.chat({
         system: input.system,
         messages,
-        tools: this.definitions(),
+        tools: available.map((tool) => tool.definition(input.context)),
         maxTokens: input.maxTokens,
         temperature: input.temperature,
       });
@@ -97,6 +124,8 @@ export class AiOrchestratorService {
             promptTokens,
             completionTokens,
             toolCalls,
+            handoffRequested,
+            escalated,
           );
         if (!grounded && !asksSomething && (searched || input.customerAsked))
           return this.fallback(
@@ -105,6 +134,8 @@ export class AiOrchestratorService {
             promptTokens,
             completionTokens,
             toolCalls,
+            handoffRequested,
+            escalated,
           );
         return {
           reply,
@@ -114,6 +145,8 @@ export class AiOrchestratorService {
           promptTokens,
           completionTokens,
           toolCalls,
+          handoffRequested,
+          escalated,
         };
       }
 
@@ -141,7 +174,7 @@ export class AiOrchestratorService {
           continue;
         }
         toolCalls += 1;
-        const tool = this.tools.find((entry) => entry.name === call.name);
+        const tool = available.find((entry) => entry.name === call.name);
         messages.push({ role: 'assistant', content: null, toolCalls: [call] });
         if (!tool) {
           await this.record(
@@ -185,6 +218,8 @@ export class AiOrchestratorService {
           if (tool.name === 'kb_search') searched = true;
           if (output.citedChunkIds?.length)
             citedChunkIds.push(...output.citedChunkIds);
+          if (output.effect === 'handoff') handoffRequested = true;
+          if (output.effect === 'escalated') escalated = true;
           await this.record(
             input.context,
             tool.name,
@@ -198,6 +233,21 @@ export class AiOrchestratorService {
             toolCallId: call.id,
             content: output.content,
           });
+          if (output.effect === 'handoff') {
+            // Terminal: the configured handoff message is the reply — the
+            // model's own words after a handoff request are not delivered.
+            return {
+              reply: input.handoffMessage,
+              grounded: true,
+              usedFallback: false,
+              citedChunkIds,
+              promptTokens,
+              completionTokens,
+              toolCalls,
+              handoffRequested,
+              escalated,
+            };
+          }
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
@@ -226,6 +276,8 @@ export class AiOrchestratorService {
       promptTokens,
       completionTokens,
       toolCalls,
+      handoffRequested,
+      escalated,
     );
   }
 
@@ -235,6 +287,8 @@ export class AiOrchestratorService {
     promptTokens: number,
     completionTokens: number,
     toolCalls: number,
+    handoffRequested = false,
+    escalated = false,
   ): OrchestratorResult {
     return {
       reply: message,
@@ -244,6 +298,8 @@ export class AiOrchestratorService {
       promptTokens,
       completionTokens,
       toolCalls,
+      handoffRequested,
+      escalated,
     };
   }
 

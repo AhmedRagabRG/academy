@@ -1,6 +1,16 @@
 import { AiOrchestratorService } from '../../../../src/modules/ai/runtime/ai-orchestrator.service';
+import { CrmAddNoteTool } from '../../../../src/modules/ai/tools/crm-add-note.tool';
 import { CrmReadContactTool } from '../../../../src/modules/ai/tools/crm-read-contact.tool';
+import { CrmUpdateContactTool } from '../../../../src/modules/ai/tools/crm-update-contact.tool';
+import { CreateTicketTool } from '../../../../src/modules/ai/tools/create-ticket.tool';
+import { HandoffToHumanTool } from '../../../../src/modules/ai/tools/handoff-to-human.tool';
 import { KbSearchTool } from '../../../../src/modules/ai/tools/kb-search.tool';
+import { RecordCollectedFieldsTool } from '../../../../src/modules/ai/tools/record-collected-fields.tool';
+import { TicketRoutingService } from '../../../../src/modules/ai/tools/ticket-routing.service';
+import { ToolBudgetService } from '../../../../src/modules/ai/tools/tool-budget.service';
+import { AiCallerContextService } from '../../../../src/modules/ai/runtime/ai-caller-context.service';
+import { ContactService } from '../../../../src/modules/contacts/contact.service';
+import { TicketService } from '../../../../src/modules/tickets/ticket.service';
 import type { KnowledgeRepository } from '../../../../src/modules/ai/knowledge/knowledge.repository';
 import type {
   OpenAiClient,
@@ -13,12 +23,17 @@ const context: AiRunContext = {
   organizationId: 'org-1',
   conversationId: 'conv-1',
   agentId: 'agent-1',
+  serviceAccountId: 'service-account-1',
   aiTurnId: 'turn-1',
   customerId: 'customer-1',
   contactId: null,
   knowledgeBaseIds: ['kb-1'],
   retrievalTopK: 6,
   retrievalMinScore: 0.35,
+  allowedCrmFields: ['name', 'email', 'secondaryPhone', 'company', 'jobTitle'],
+  collectionFields: [{ key: 'name', label: 'الاسم' }],
+  routingCategories: [{ category: 'complaint', label: 'شكوى' }],
+  routingMinConfidence: 0.6,
 };
 
 const chatResult = (overrides: Partial<ChatResult> = {}): ChatResult => ({
@@ -41,13 +56,35 @@ const harness = (options: { chat: jest.Mock; search?: jest.Mock }) => {
   } as unknown as OpenAiClient;
   const record = jest.fn<Promise<unknown>, [data: unknown]>();
   const db = {
-    aiToolExecution: { create: record },
+    aiToolExecution: { create: record, count: jest.fn().mockResolvedValue(0) },
+    aiTicketRoutingRule: { findUnique: jest.fn().mockResolvedValue(null) },
+    ticketTeam: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
+  const contacts = {
+    update: jest.fn(),
+    addNote: jest.fn(),
+  } as unknown as ContactService;
+  // Must resolve a ticket: the tool reads `.number` back to tell the customer
+  // what was raised, so a bare jest.fn() throws inside the tool rather than
+  // exercising it.
+  const tickets = {
+    create: jest.fn().mockResolvedValue({ id: 'ticket-1', number: 'TKT-1042' }),
+  } as unknown as TicketService;
+  const caller = {
+    forAccount: jest.fn().mockResolvedValue({ accountId: 'service-account-1' }),
+  } as unknown as AiCallerContextService;
+  const budget = new ToolBudgetService(db);
+  const routing = new TicketRoutingService(db);
   const service = new AiOrchestratorService(
     openAi,
     db,
     new KbSearchTool(knowledge, openAi),
     new CrmReadContactTool(db),
+    new CrmUpdateContactTool(contacts, caller, budget, db),
+    new CrmAddNoteTool(contacts, caller, budget),
+    new RecordCollectedFieldsTool(db),
+    new CreateTicketTool(tickets, routing, caller, budget),
+    new HandoffToHumanTool(),
   );
   return { service, record };
 };
@@ -69,6 +106,7 @@ const run = (
     maxTokens: 600,
     temperature: 0.3,
     fallbackMessage: 'عذرًا، سأحوّلك إلى موظف.',
+    handoffMessage: 'سيكمل أحد موظفينا مساعدتك.',
     maxToolCalls: 4,
     customerAsked,
   });
@@ -195,6 +233,116 @@ describe('AiOrchestratorService grounding', () => {
   });
 });
 
+/** The tool names the orchestrator actually offered the model on its first call. */
+const toolNamesOffered = (chat: jest.Mock): string[] => {
+  const [request] = chat.mock.calls[0] as [
+    { tools?: { function: { name: string } }[] },
+  ];
+  return (request.tools ?? []).map((tool) => tool.function.name);
+};
+
+describe('AiOrchestratorService Phase 6 behaviours', () => {
+  it('exposes only allow-listed tools to the model', async () => {
+    const chat = jest.fn().mockResolvedValue(chatResult({ content: 'أهلًا!' }));
+    const { service } = harness({ chat });
+    await run(service);
+    const tools = toolNamesOffered(chat);
+    expect(tools).toEqual(['kb_search', 'crm_read_contact']);
+  });
+
+  it('offers the write tools when the agent allow-lists them', async () => {
+    const chat = jest.fn().mockResolvedValue(chatResult({ content: 'أهلًا!' }));
+    const { service } = harness({ chat });
+    await service.run({
+      system: 'system',
+      history: [{ role: 'user', content: 'مرحبا' }],
+      context,
+      maxTokens: 600,
+      temperature: 0.3,
+      fallbackMessage: 'f',
+      handoffMessage: 'h',
+      maxToolCalls: 4,
+      allowedToolNames: ['kb_search', 'crm_update_contact', 'handoff_to_human'],
+    });
+    const tools = toolNamesOffered(chat);
+    expect(tools).toEqual([
+      'kb_search',
+      'crm_update_contact',
+      'handoff_to_human',
+    ]);
+  });
+
+  it('answers with the configured handoff message and stops the loop after a handoff', async () => {
+    const chat = jest
+      .fn()
+      .mockResolvedValueOnce(
+        chatResult({
+          toolCalls: [
+            {
+              id: 'h1',
+              name: 'handoff_to_human',
+              arguments: '{"reason":"طلب العميل"}',
+            },
+          ],
+        }),
+      )
+      // A second model call must never happen: the handoff is terminal.
+      .mockResolvedValueOnce(chatResult({ content: 'لن يصل هذا أبدًا' }));
+    const { service } = harness({ chat });
+    const result = await service.run({
+      system: 'system',
+      history: [{ role: 'user', content: 'أريد موظفًا' }],
+      context,
+      maxTokens: 600,
+      temperature: 0.3,
+      fallbackMessage: 'عذرًا، سأحوّلك إلى موظف.',
+      handoffMessage: 'سيكمل أحد موظفينا مساعدتك.',
+      maxToolCalls: 4,
+      customerAsked: true,
+      allowedToolNames: ['handoff_to_human'],
+    });
+    expect(result.reply).toBe('سيكمل أحد موظفينا مساعدتك.');
+    expect(result.handoffRequested).toBe(true);
+    expect(result.usedFallback).toBe(false);
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags an escalation without ending the turn — the reply still explains it', async () => {
+    const chat = jest
+      .fn()
+      .mockResolvedValueOnce(
+        chatResult({
+          toolCalls: [
+            {
+              id: 't1',
+              name: 'create_ticket',
+              arguments:
+                '{"title":"شكوى","description":"وصف","priority":"high","category":"complaint","confidence":0.9}',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        chatResult({ content: 'أنشأت لك تذكرة وسيتابعها الموظف قريبًا.' }),
+      );
+    const { service } = harness({ chat });
+    const result = await service.run({
+      system: 'system',
+      history: [{ role: 'user', content: 'لدي شكوى' }],
+      context,
+      maxTokens: 600,
+      temperature: 0.3,
+      fallbackMessage: 'f',
+      handoffMessage: 'h',
+      maxToolCalls: 4,
+      allowedToolNames: ['create_ticket'],
+    });
+    expect(result.escalated).toBe(true);
+    expect(result.handoffRequested).toBe(false);
+    expect(result.reply).toContain('تذكرة');
+  });
+});
+
 describe('AiOrchestratorService tool handling', () => {
   it('records a denied unknown tool and tells the model', async () => {
     const chat = jest
@@ -256,6 +404,7 @@ describe('AiOrchestratorService tool handling', () => {
       maxTokens: 600,
       temperature: 0.3,
       fallbackMessage: 'f',
+      handoffMessage: 'h',
       maxToolCalls: 2,
     });
     const outcomes = record.mock.calls.map(

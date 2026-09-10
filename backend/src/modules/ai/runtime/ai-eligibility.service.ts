@@ -1,5 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../../prisma/generated/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { isWithinWorkingHours } from './working-hours';
+
+export type EligibleAgent = Prisma.AiAgentGetPayload<{
+  include: {
+    knowledgeBases: { select: { knowledgeBaseId: true } };
+    ticketRoutingRules: { select: { category: true; categoryLabel: true } };
+  };
+}>;
 
 export type SkipReason =
   | 'agent-missing'
@@ -10,18 +19,25 @@ export type SkipReason =
   | 'mode-paused'
   | 'conversation-closed'
   | 'no-knowledge-base'
+  | 'outside-hours'
   | 'not-configured';
 
 export interface EligibleTurn {
   eligible: true;
   turnSeq: number;
-  agent: Awaited<ReturnType<PrismaService['aiAgent']['findFirst']>> & object;
+  agent: EligibleAgent;
   knowledgeBaseIds: string[];
   conversationId: string;
   organizationId: string;
   customerId: string;
   contactId: string | null;
   platformCode: string;
+  /**
+   * True when the agent is configured to answer outside working hours with
+   * the fallback message instead of the model: the processor sends the
+   * configured fallback directly and skips generation entirely.
+   */
+  outsideHoursFallback?: boolean;
 }
 
 @Injectable()
@@ -86,7 +102,14 @@ export class AiEligibilityService {
 
     const agent = await this.db.aiAgent.findFirst({
       where: { id: state.agentId, organizationId: conversation.organizationId },
-      include: { knowledgeBases: { select: { knowledgeBaseId: true } } },
+      include: {
+        knowledgeBases: { select: { knowledgeBaseId: true } },
+        ticketRoutingRules: {
+          where: { active: true },
+          select: { category: true, categoryLabel: true },
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
     });
     if (!agent) return { eligible: false, reason: 'agent-missing' };
     if (!agent.enabled) return { eligible: false, reason: 'agent-disabled' };
@@ -99,6 +122,26 @@ export class AiEligibilityService {
     if (!knowledgeBaseIds.length)
       return { eligible: false, reason: 'no-knowledge-base' };
 
+    // Working hours use the organization's configured clock. An agent that is
+    // closed right now either stays silent or answers with the configured
+    // fallback — the model is never invoked, because its answers would not be
+    // staffed either.
+    let outsideHoursFallback = false;
+    if (agent.workingHours !== null) {
+      const settings = await this.db.generalSettings.findFirst({
+        select: { timeZone: true },
+      });
+      const within = isWithinWorkingHours(
+        agent.workingHours,
+        settings?.timeZone ?? 'UTC',
+      );
+      if (!within) {
+        if (agent.outsideHoursBehaviour === 'fallback_message')
+          outsideHoursFallback = true;
+        else return { eligible: false, reason: 'outside-hours' };
+      }
+    }
+
     return {
       eligible: true,
       turnSeq,
@@ -109,6 +152,7 @@ export class AiEligibilityService {
       customerId: conversation.customerId,
       contactId: conversation.customer.contactId,
       platformCode: conversation.platform.code,
+      outsideHoursFallback,
     };
   }
 }

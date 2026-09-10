@@ -19,6 +19,16 @@ import type {
 } from '../../../src/modules/ai/llm/openai.client';
 import { KbSearchTool } from '../../../src/modules/ai/tools/kb-search.tool';
 import { CrmReadContactTool } from '../../../src/modules/ai/tools/crm-read-contact.tool';
+import { CrmAddNoteTool } from '../../../src/modules/ai/tools/crm-add-note.tool';
+import { CrmUpdateContactTool } from '../../../src/modules/ai/tools/crm-update-contact.tool';
+import { CreateTicketTool } from '../../../src/modules/ai/tools/create-ticket.tool';
+import { HandoffToHumanTool } from '../../../src/modules/ai/tools/handoff-to-human.tool';
+import { RecordCollectedFieldsTool } from '../../../src/modules/ai/tools/record-collected-fields.tool';
+import { TicketRoutingService } from '../../../src/modules/ai/tools/ticket-routing.service';
+import { ToolBudgetService } from '../../../src/modules/ai/tools/tool-budget.service';
+import { AiCallerContextService } from '../../../src/modules/ai/runtime/ai-caller-context.service';
+import { ContactService } from '../../../src/modules/contacts/contact.service';
+import { TicketService } from '../../../src/modules/tickets/ticket.service';
 import { AiOrchestratorService } from '../../../src/modules/ai/runtime/ai-orchestrator.service';
 import { AiEligibilityService } from '../../../src/modules/ai/runtime/ai-eligibility.service';
 import { AiContextService } from '../../../src/modules/ai/runtime/ai-context.service';
@@ -105,11 +115,40 @@ const inbox = new InboxService(
   { link: jest.fn(), summary: jest.fn() } as unknown as InboxCrmLinkService,
   new InboxRealtimeService(),
 );
+import { ContactRepository } from '../../../src/modules/contacts/contact.repository';
+const contactsService = new ContactService(
+  new ContactRepository(prisma as never),
+  {
+    scope: () => ({}),
+    assert: () => undefined,
+    has: () => true,
+    assertVisible: () => undefined,
+  },
+);
+const ticketsService = new TicketService(
+  prisma as never,
+  { assert: () => undefined } as never,
+  {} as never,
+  { get: () => undefined } as never,
+);
+const callerContext = new AiCallerContextService(prisma as never);
+const budget = new ToolBudgetService(prisma as never);
+const routing = new TicketRoutingService(prisma as never);
 const orchestrator = new AiOrchestratorService(
   openAi,
   prisma as never,
   new KbSearchTool(knowledge, openAi),
   new CrmReadContactTool(prisma as never),
+  new CrmUpdateContactTool(
+    contactsService,
+    callerContext,
+    budget,
+    prisma as never,
+  ),
+  new CrmAddNoteTool(contactsService, callerContext, budget),
+  new RecordCollectedFieldsTool(prisma as never),
+  new CreateTicketTool(ticketsService, routing, callerContext, budget),
+  new HandoffToHumanTool(),
 );
 const processor = new AiTurnProcessor(
   prisma as never,
@@ -248,7 +287,7 @@ const chatText = (content: string): ChatResult => ({
   completionTokens: 10,
 });
 const chatSearch = (query: string): ChatResult => ({
-  content: null,
+  content: '',
   toolCalls: [
     {
       id: randomUUID(),
@@ -576,7 +615,7 @@ describe('agent runtime', () => {
     });
     const bounded = await context.build(conversationId);
     const newest = bounded.messages.at(-1);
-    expect(newest?.content.length).toBeLessThanOrEqual(
+    expect((newest?.content ?? '').length).toBeLessThanOrEqual(
       '<customer_message>\n'.length + 2000 + '\n</customer_message>'.length,
     );
   }, 30_000);

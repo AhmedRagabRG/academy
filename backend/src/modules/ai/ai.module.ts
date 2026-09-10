@@ -12,6 +12,14 @@ import { KnowledgeRepository } from './knowledge/knowledge.repository';
 import { KnowledgeService } from './knowledge/knowledge.service';
 import { OpenAiClient } from './llm/openai.client';
 import { AiResumeSweeper } from './runtime/ai-resume.sweeper';
+import { AiContextService } from './runtime/ai-context.service';
+import { AiEligibilityService } from './runtime/ai-eligibility.service';
+import { AiOrchestratorService } from './runtime/ai-orchestrator.service';
+import { AiTurnEnqueueService } from './runtime/ai-turn-enqueue.service';
+import { AiTurnListener } from './runtime/ai-turn.listener';
+import { AiTurnProcessor } from './runtime/ai-turn.processor';
+import { CrmReadContactTool } from './tools/crm-read-contact.tool';
+import { KbSearchTool } from './tools/kb-search.tool';
 
 @Module({})
 export class AiModule {
@@ -37,6 +45,17 @@ export class AiModule {
         KnowledgeService,
         AiAgentRepository,
         AiAgentService,
+        AiEligibilityService,
+        AiContextService,
+        AiOrchestratorService,
+        KbSearchTool,
+        CrmReadContactTool,
+        // The worker and the producer both need a live queue. Without one the
+        // rest of the module still loads, so settings and knowledge management
+        // stay usable before the AI is switched on.
+        ...(queueAvailable
+          ? [AiTurnProcessor, AiTurnEnqueueService, AiTurnListener]
+          : []),
         ...(queueAvailable ? [KbIngestProcessor] : []),
       ],
       exports: [OpenAiClient, KnowledgeService, KnowledgeRepository],

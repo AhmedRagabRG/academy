@@ -10,6 +10,10 @@ import {
 } from '../../../core/events/meta-message-status.event';
 import { PrismaService } from '../../../database/prisma.service';
 import {
+  INBOX_MESSAGE_RECEIVED_EVENT,
+  type InboxMessageReceivedEvent,
+} from '../../../core/events/inbox-message-received.event';
+import {
   ChannelCredentialsService,
   type ChannelProviderCode,
 } from '../channels/channel-credentials.service';
@@ -429,8 +433,9 @@ export class MetaWebhookService {
         : {}),
     };
     let customerId: string;
+    let persistedConversationId: string | null = null;
     try {
-      customerId = await this.db.$transaction(async (tx) => {
+      const committed = await this.db.$transaction(async (tx) => {
         const customer = await tx.inboxCustomer.upsert({
           where: {
             organizationId_normalizedPhone: {
@@ -486,8 +491,10 @@ export class MetaWebhookService {
           where: { conversationId: conversation.id },
           data: { turnSeq: { increment: 1 } },
         });
-        return customer.id;
+        return { customerId: customer.id, conversationId: conversation.id };
       });
+      customerId = committed.customerId;
+      persistedConversationId = committed.conversationId;
     } catch (error) {
       if (!isDuplicateProviderMessage(error)) throw error;
       // A unique-conflict only proves that this provider id already exists.
@@ -535,6 +542,15 @@ export class MetaWebhookService {
       platformLabel: platform?.label,
       occurredAt: now,
     });
+    // Only for a genuinely new message. A duplicate delivery took the recovery
+    // branch above and left this null, so a Meta retry cannot enqueue a second
+    // turn for a message the customer sent once.
+    if (persistedConversationId)
+      this.events.emit(INBOX_MESSAGE_RECEIVED_EVENT, {
+        organizationId: route.organizationId,
+        conversationId: persistedConversationId,
+        platformCode: input.channel,
+      } satisfies InboxMessageReceivedEvent);
   }
 }
 

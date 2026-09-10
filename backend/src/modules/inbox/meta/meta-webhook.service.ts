@@ -449,7 +449,7 @@ export class MetaWebhookService {
             lastActivityAt: now,
           },
         });
-        await tx.inboxConversation.upsert({
+        const conversation = await tx.inboxConversation.upsert({
           where: {
             platformId_providerThreadId: {
               platformId: route.platformId,
@@ -476,6 +476,15 @@ export class MetaWebhookService {
             lastActivityAt: now,
             messages: { create: message },
           },
+        });
+        // Inside this transaction on purpose. The P2002 on providerMessageId
+        // aborts the whole transaction for a duplicate delivery, which rolls
+        // this increment back for free. Moved to a post-commit hook it would
+        // double-increment on every Meta retry and silently fence out a valid
+        // AI turn.
+        await tx.conversationAiState.updateMany({
+          where: { conversationId: conversation.id },
+          data: { turnSeq: { increment: 1 } },
         });
         return customer.id;
       });

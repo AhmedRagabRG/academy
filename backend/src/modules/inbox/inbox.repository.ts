@@ -53,6 +53,21 @@ export class InboxRepository {
       },
     });
   }
+  /**
+   * Deliberately unscoped: the AI worker has no CallerContext, so policy.scope
+   * cannot apply. Named so that any use outside the AI pipeline is obvious in
+   * review. Still organization-bound.
+   */
+  async forSystem(id: string) {
+    return this.db.inboxConversation.findFirst({
+      where: {
+        id,
+        organizationId: await this.organizationId(),
+        deletedAt: null,
+      },
+      include: { platform: true, customer: true },
+    });
+  }
   fingerprint(q: InboxListDto) {
     const normalized = {
       search: q.search.trim().toLocaleLowerCase(),

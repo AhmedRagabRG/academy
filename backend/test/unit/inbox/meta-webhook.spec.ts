@@ -30,6 +30,9 @@ const database = () => {
     inboxConversation: {
       upsert: jest.fn().mockResolvedValue({ id: 'conversation-id' }),
     },
+    conversationAiState: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
   };
   db.$transaction = jest.fn((callback: (tx: unknown) => Promise<unknown>) =>
     callback(db),
@@ -786,5 +789,71 @@ describe('MetaWebhookService', () => {
       },
       data: { delivery: 'READ' },
     });
+  });
+});
+
+/**
+ * The AI fencing token must move in the same transaction that writes the
+ * message. If this ever regresses to a post-commit hook, a Meta redelivery
+ * double-increments it and silently fences out a legitimate in-flight AI turn,
+ * so the assertion is on the ordering, not merely on the call happening.
+ */
+describe('MetaWebhookService AI fencing token', () => {
+  it('increments turnSeq inside the message transaction', async () => {
+    const db = database();
+    let insideTransaction = false;
+    let incrementedInsideTransaction = false;
+    (db.conversationAiState as { updateMany: jest.Mock }).updateMany = jest.fn(
+      () => {
+        incrementedInsideTransaction = insideTransaction;
+        return Promise.resolve({ count: 1 });
+      },
+    );
+    db.$transaction = jest.fn(
+      async (callback: (tx: unknown) => Promise<unknown>) => {
+        insideTransaction = true;
+        try {
+          return await callback(db);
+        } finally {
+          insideTransaction = false;
+        }
+      },
+    );
+    const { service: channelService } = channels(messengerRoute);
+    const { service: crmService } = crm();
+    const service = new MetaWebhookService(
+      new ConfigService({
+        meta: { appSecret: 'app-secret', verifyToken: 'verify-token' },
+      }),
+      db as unknown as PrismaService,
+      new InboxRealtimeService(),
+      channelService,
+      crmService,
+      emitter(),
+    );
+    await service.ingest({
+      object: 'page',
+      entry: [
+        {
+          id: 'page-id',
+          messaging: [
+            {
+              sender: { id: 'psid-9' },
+              timestamp: 1_786_333_200_000,
+              message: { mid: 'mid-fence-1', text: 'مرحبا' },
+            },
+          ],
+        },
+      ],
+    });
+    const state = db.conversationAiState as { updateMany: jest.Mock };
+    expect(state.updateMany).toHaveBeenCalledWith({
+      where: { conversationId: 'conversation-id' },
+      data: { turnSeq: { increment: 1 } },
+    });
+    // Call ordering alone cannot tell "last statement in the transaction" from
+    // "first statement after it", so the mock records the transaction's open
+    // window and the assertion is that the increment landed inside it.
+    expect(incrementedInsideTransaction).toBe(true);
   });
 });

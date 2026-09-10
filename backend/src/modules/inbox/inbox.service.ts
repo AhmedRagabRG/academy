@@ -14,6 +14,7 @@ import {
   type InboxDeliveryPort,
 } from './delivery/inbox-delivery.port';
 import { InboxCrmLinkService } from './crm/inbox-crm-link.service';
+import { InboxRealtimeService } from './inbox-realtime.service';
 import { InboxPolicy } from './inbox.policy';
 import { InboxRepository } from './inbox.repository';
 
@@ -45,6 +46,31 @@ type Aggregate = Prisma.InboxConversationGetPayload<{
   include: typeof aggregateInclude;
 }>;
 
+/**
+ * Who wrote an outbound message. A closed union, and the AI branch deliberately
+ * carries no CallerContext: there is no synthetic caller to fabricate, so no
+ * permission check can be bypassed by constructing one. The AI's authority comes
+ * from its own restricted service account at the point it calls a domain service,
+ * never from an impersonated context here.
+ */
+type OutboundAuthor =
+  | { kind: 'human'; caller: CallerContext }
+  | {
+      kind: 'ai';
+      agentId: string;
+      serviceAccountId: string;
+      agentDisplayName: string;
+      aiTurnId: string;
+    };
+
+/** Raised when a human took over before the AI's reply could be committed. */
+export class AiTurnSuppressed extends Error {
+  constructor(readonly stage: 'commit' | 'dispatch') {
+    super(`AI turn suppressed at ${stage}`);
+    this.name = 'AiTurnSuppressed';
+  }
+}
+
 @Injectable()
 export class InboxService {
   private readonly attachmentTtlMs = 60 * 60 * 1000;
@@ -54,6 +80,7 @@ export class InboxService {
     @Inject(INBOX_DELIVERY_PORT) private readonly delivery: InboxDeliveryPort,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
     private readonly crm: InboxCrmLinkService,
+    private readonly realtime: InboxRealtimeService,
   ) {}
   private event(
     c: CallerContext,
@@ -61,13 +88,16 @@ export class InboxService {
     label: string,
     payload?: Prisma.InputJsonValue,
   ) {
-    return {
-      type,
-      label,
-      actorId: c.accountId,
-      actorName: c.displayName,
-      payload,
-    };
+    return this.actorEvent(c.accountId, c.displayName, type, label, payload);
+  }
+  private actorEvent(
+    actorId: string,
+    actorName: string,
+    type: string,
+    label: string,
+    payload?: Prisma.InputJsonValue,
+  ) {
+    return { type, label, actorId, actorName, payload };
   }
   private project(row: Aggregate) {
     return {
@@ -419,6 +449,116 @@ export class InboxService {
       throw error;
     }
   }
+  /**
+   * The single place an outbound InboxMessage row is written. Both the human
+   * reply path and the AI path go through it, so the message shape, the
+   * conversation counters and the system-event trail cannot drift apart.
+   *
+   * Must be called inside a transaction. For a human author it also pauses the
+   * AI in that same transaction: a post-commit listener would lose the pause if
+   * the process died in between, and the AI would then reply on top of the human.
+   */
+  private async persistOutbound(
+    tx: Prisma.TransactionClient,
+    conversationId: string,
+    input: {
+      messageId: string;
+      body: string;
+      sentAt: Date;
+      retryToken: string;
+      author: OutboundAuthor;
+      lastMessage: string;
+      attachments?: Prisma.InboxMessageAttachmentCreateWithoutMessageInput[];
+    },
+  ) {
+    const author = input.author;
+    const created = await tx.inboxMessage.create({
+      data: {
+        id: input.messageId,
+        conversationId,
+        direction: 'OUTGOING',
+        authorType: author.kind === 'human' ? 'HUMAN_AGENT' : 'AI_AGENT',
+        senderName:
+          author.kind === 'human'
+            ? author.caller.displayName
+            : author.agentDisplayName,
+        body: input.body,
+        sentAt: input.sentAt,
+        delivery: 'QUEUED',
+        retryToken: input.retryToken,
+        createdBy:
+          author.kind === 'human'
+            ? author.caller.accountId
+            : author.serviceAccountId,
+        ...(author.kind === 'ai' ? { aiTurnId: author.aiTurnId } : {}),
+        ...(input.attachments?.length
+          ? { attachments: { create: input.attachments } }
+          : {}),
+      },
+    });
+    await tx.inboxConversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessage: input.lastMessage,
+        lastActivityAt: input.sentAt,
+        // Only a human replying implies a human read the thread. An AI reply
+        // must not clear the badge, or an inbound message arriving alongside it
+        // would be silently marked as seen by nobody.
+        ...(author.kind === 'human' ? { unreadCount: 0 } : {}),
+        version: { increment: 1 },
+        systemEvents: {
+          create:
+            author.kind === 'human'
+              ? this.event(author.caller, 'reply.sent', 'تم إرسال رد', {
+                  messageId: created.id,
+                })
+              : this.actorEvent(
+                  author.serviceAccountId,
+                  author.agentDisplayName,
+                  'ai.reply.sent',
+                  'رد المساعد الذكي',
+                  { messageId: created.id, aiTurnId: author.aiTurnId },
+                ),
+        },
+      },
+    });
+    if (author.kind === 'human')
+      await this.pauseAiForHuman(tx, conversationId, author.caller);
+    return created;
+  }
+  /**
+   * Hard requirement: this runs inside the human reply's own transaction, so a
+   * rollback takes the pause with it and a crash can never leave the AI live on
+   * a conversation a human has entered.
+   *
+   * One statement, so the resume deadline is computed from the agent's setting
+   * against Postgres's clock rather than the application's. A null
+   * `resumeAfterMinutes` means never auto-resume. No state row -> no-op.
+   */
+  private async pauseAiForHuman(
+    tx: Prisma.TransactionClient,
+    conversationId: string,
+    c: CallerContext,
+  ) {
+    await tx.$executeRaw`
+      UPDATE "ConversationAiState" s
+      SET mode = 'PAUSED',
+          "pausedReason" = 'HUMAN_REPLY',
+          "pausedAt" = now(),
+          "pausedByAccountId" = ${c.accountId}::uuid,
+          "resumeAt" = CASE
+            WHEN a."resumeAfterMinutes" IS NULL THEN NULL
+            ELSE now() + (interval '1 minute' * a."resumeAfterMinutes")
+          END,
+          "turnSeq" = s."turnSeq" + 1,
+          "version" = s."version" + 1,
+          "updatedAt" = now()
+      FROM "AiAgent" a
+      WHERE s."conversationId" = ${conversationId}::uuid
+        AND a.id = s."agentId"
+        AND s.mode <> 'OFF'
+    `;
+  }
   async sendReply(c: CallerContext, id: string, dto: ReplyDto) {
     this.policy.assert(c, 'inbox.reply');
     const body = dto.body.trim();
@@ -505,45 +645,23 @@ export class InboxService {
             409,
           );
       }
-      const created = await tx.inboxMessage.create({
-        data: {
-          id: messageId,
-          conversationId: id,
-          direction: 'OUTGOING',
-          senderName: c.displayName,
-          body,
-          sentAt,
-          delivery: 'QUEUED',
-          retryToken: dto.retryToken,
-          createdBy: c.accountId,
-          attachments: {
-            create: dto.attachments.map((a) => ({
-              sourceId: a.id,
-              kind: a.kind,
-              fileName: a.fileName,
-              sizeBytes: a.sizeBytes,
-              storageKey: sourceById.get(a.id)!.storageId,
-              ownerAccountId: c.accountId,
-              durationSeconds: a.durationSeconds,
-            })),
-          },
-        },
+      return this.persistOutbound(tx, current.id, {
+        messageId,
+        body,
+        sentAt,
+        retryToken: dto.retryToken,
+        author: { kind: 'human', caller: c },
+        lastMessage: body || dto.attachments[0].fileName,
+        attachments: dto.attachments.map((a) => ({
+          sourceId: a.id,
+          kind: a.kind,
+          fileName: a.fileName,
+          sizeBytes: a.sizeBytes,
+          storageKey: sourceById.get(a.id)!.storageId,
+          ownerAccountId: c.accountId,
+          durationSeconds: a.durationSeconds,
+        })),
       });
-      await tx.inboxConversation.update({
-        where: { id: current.id },
-        data: {
-          lastMessage: body || dto.attachments[0].fileName,
-          lastActivityAt: sentAt,
-          unreadCount: 0,
-          version: { increment: 1 },
-          systemEvents: {
-            create: this.event(c, 'reply.sent', 'تم إرسال رد', {
-              messageId: created.id,
-            }),
-          },
-        },
-      });
-      return created;
     });
     try {
       const result = await this.delivery.enqueue({
@@ -570,6 +688,176 @@ export class InboxService {
       throw error;
     }
     return this.project(await this.full(c, id));
+  }
+  /**
+   * The AI's only way to speak. Deliberately takes no CallerContext, so it is
+   * unreachable from any controller and cannot be driven by an HTTP request.
+   *
+   * Three independent guards stop it talking over a human, in order:
+   *
+   *  1. `retryToken` = `ai:<aiTurnId>`, stable across every BullMQ retry, against
+   *     the existing @@unique([conversationId, retryToken]). A retry of a turn
+   *     whose row already committed does NOT re-decide whether to speak — that
+   *     decision was made and committed — it only re-attempts dispatch.
+   *  2. The fencing guard, inside the same transaction as the insert. If
+   *     `turnSeq` moved, nothing is written at all and the generated text is
+   *     discarded unseen.
+   *  3. The dispatch guard, one atomic statement immediately before the network
+   *     call. The commit and the provider request cannot be atomic — putting a
+   *     fetch inside a Postgres transaction is exactly what sendReply avoids —
+   *     so this shrinks the residual window to roughly one statement. Losing it
+   *     leaves the row SUPPRESSED rather than deleting it: an agent may already
+   *     have seen it, and silently removing it would be dishonest.
+   */
+  async sendAiReply(input: {
+    conversationId: string;
+    agentId: string;
+    serviceAccountId: string;
+    agentDisplayName: string;
+    aiTurnId: string;
+    body: string;
+    expectedTurnSeq: number;
+  }): Promise<{
+    status: 'sent' | 'suppressed' | 'failed';
+    messageId?: string;
+  }> {
+    const body = input.body.trim();
+    if (!body) throw new DomainException('validation', 'نص الرد مطلوب', 422);
+    const conversation = await this.repo.forSystem(input.conversationId);
+    if (!conversation) return { status: 'suppressed' };
+    const retryToken = `ai:${input.aiTurnId}`;
+    let message: { id: string } | null = null;
+    try {
+      message = await this.repo.db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ai:${input.conversationId}`}, 0))`;
+        const existing = await tx.inboxMessage.findUnique({
+          where: {
+            conversationId_retryToken: {
+              conversationId: input.conversationId,
+              retryToken,
+            },
+          },
+          select: { id: true },
+        });
+        if (existing) return existing;
+        const guard = await tx.conversationAiState.updateMany({
+          where: {
+            conversationId: input.conversationId,
+            turnSeq: input.expectedTurnSeq,
+            mode: 'AUTO',
+            conversation: { deletedAt: null, status: { not: 'ARCHIVED' } },
+          },
+          data: { turnSeq: { increment: 1 } },
+        });
+        if (guard.count === 0) throw new AiTurnSuppressed('commit');
+        return this.persistOutbound(tx, input.conversationId, {
+          messageId: randomUUID(),
+          body,
+          sentAt: new Date(),
+          retryToken,
+          author: {
+            kind: 'ai',
+            agentId: input.agentId,
+            serviceAccountId: input.serviceAccountId,
+            agentDisplayName: input.agentDisplayName,
+            aiTurnId: input.aiTurnId,
+          },
+          lastMessage: body,
+        });
+      });
+    } catch (error) {
+      if (error instanceof AiTurnSuppressed) {
+        this.realtime.publish();
+        return { status: 'suppressed' };
+      }
+      throw error;
+    }
+    const claimed = await this.claimAiDispatch(
+      input.aiTurnId,
+      input.conversationId,
+      input.expectedTurnSeq + 1,
+    );
+    if (!claimed) {
+      await this.repo.db.inboxMessage.update({
+        where: { id: message.id },
+        data: { delivery: 'SUPPRESSED' },
+      });
+      await this.repo.db.inboxSystemEvent.create({
+        data: {
+          conversationId: input.conversationId,
+          ...this.actorEvent(
+            input.serviceAccountId,
+            input.agentDisplayName,
+            'ai.reply.suppressed',
+            'أُوقفت مسودة المساعد الذكي',
+            { messageId: message.id, aiTurnId: input.aiTurnId },
+          ),
+        },
+      });
+      this.realtime.publish();
+      return { status: 'suppressed', messageId: message.id };
+    }
+    try {
+      const result = await this.delivery.enqueue({
+        organizationId: conversation.organizationId,
+        conversationId: input.conversationId,
+        messageId: message.id,
+        platformCode: conversation.platform.code,
+        recipientId:
+          conversation.providerThreadId ??
+          conversation.customer.normalizedPhone,
+        body,
+      });
+      await this.repo.db.inboxMessage.update({
+        where: { id: message.id },
+        data: {
+          delivery: result.state === 'sent' ? 'SENT' : 'QUEUED',
+          providerMessageId: result.providerReference,
+        },
+      });
+      this.realtime.publish();
+      return { status: 'sent', messageId: message.id };
+    } catch {
+      await this.repo.db.inboxMessage.update({
+        where: { id: message.id },
+        data: { delivery: 'FAILED' },
+      });
+      this.realtime.publish();
+      return { status: 'failed', messageId: message.id };
+    }
+  }
+  /**
+   * Marks the turn as "the provider request is about to be issued", but only if
+   * this turn still owns the conversation. Mirrors
+   * CampaignDispatcherService.markRequestStarted: one statement whose row lock
+   * also stops a concurrent retry double-sending. `dispatchStartedAt IS NULL`
+   * is the point of no automatic return.
+   */
+  private async claimAiDispatch(
+    aiTurnId: string,
+    conversationId: string,
+    turnSeq: number,
+  ): Promise<boolean> {
+    const rows = await this.repo.db.$queryRaw<Array<{ id: string }>>`
+      UPDATE "AiTurn" t
+      SET "dispatchStartedAt" = now()
+      WHERE t.id = ${aiTurnId}::uuid
+        AND t."dispatchStartedAt" IS NULL
+        AND EXISTS (
+          SELECT 1 FROM "ConversationAiState" s
+          WHERE s."conversationId" = ${conversationId}::uuid
+            AND s."turnSeq" = ${turnSeq}
+            AND s.mode = 'AUTO'
+        )
+        AND EXISTS (
+          SELECT 1 FROM "InboxConversation" c
+          WHERE c.id = ${conversationId}::uuid
+            AND c."deletedAt" IS NULL
+            AND c.status <> 'ARCHIVED'
+        )
+      RETURNING t.id
+    `;
+    return rows.length === 1;
   }
   async assign(c: CallerContext, id: string, dto: AssignmentDto) {
     const row = await this.full(c, id);

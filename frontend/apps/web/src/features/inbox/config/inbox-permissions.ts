@@ -12,6 +12,7 @@ export const inboxPermissions = {
   archive: "inbox.archive",
   delete: "inbox.delete",
   restore: "inbox.restore",
+  aiControl: "inbox.ai.control",
 } as const
 
 export type InboxPermission =

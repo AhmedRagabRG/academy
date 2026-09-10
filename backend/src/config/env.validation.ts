@@ -51,6 +51,8 @@ class EnvironmentVariables {
   @IsInt() @Min(0) OPENAI_MAX_RETRIES = 2;
   @IsBooleanString() AI_ENABLED = 'false';
   @IsBooleanString() AI_QUEUE_ENABLED = 'false';
+  @IsBooleanString() AI_RESUME_SWEEP_ENABLED = 'true';
+  @IsInt() @Min(1000) AI_RESUME_SWEEP_MS = 30000;
 }
 
 export function validate(

@@ -16,7 +16,7 @@ import type {
   ConversationView,
   InboxDashboard,
 } from "../types/projections"
-import type { InternalNote } from "../types/domain"
+import type { ConversationAiState, InternalNote } from "../types/domain"
 import type { Attachment } from "../types/domain"
 
 export interface InboxLookups {
@@ -49,6 +49,11 @@ export interface InboxService {
   archive(id: ConversationId): Promise<ConversationDetail>
   delete(id: ConversationId): Promise<void>
   restore(id: ConversationId): Promise<ConversationDetail>
+  setAiMode(
+    id: ConversationId,
+    action: "pause" | "resume",
+    expectedVersion: number
+  ): Promise<ConversationAiState>
   addNote(id: ConversationId, content: string): Promise<InternalNote>
   editNote(
     id: ConversationId,

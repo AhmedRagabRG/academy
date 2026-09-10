@@ -1,14 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { Prisma } from '../../../prisma/generated/client';
-import { DomainException, NotFoundException } from '../../core/exceptions';
+import type {
+  ConversationAiState,
+  Prisma,
+} from '../../../prisma/generated/client';
+import {
+  DomainException,
+  NotFoundException,
+  VersionConflictException,
+} from '../../core/exceptions';
 import type { CallerContext } from '../../shared/types/caller-context';
 import {
   STORAGE_SERVICE,
   type StorageService,
   type UploadedFile,
 } from '../../storage/storage.service.interface';
-import type { AssignmentDto, InboxListDto, ReplyDto } from './dto/inbox.dto';
+import type {
+  AiControlDto,
+  AssignmentDto,
+  InboxListDto,
+  ReplyDto,
+} from './dto/inbox.dto';
 import {
   INBOX_DELIVERY_PORT,
   type InboxDeliveryPort,
@@ -41,6 +53,7 @@ const aggregateInclude = {
   notes: { orderBy: { createdAt: 'asc' as const } },
   assignmentHistory: { orderBy: { occurredAt: 'asc' as const } },
   systemEvents: { orderBy: { occurredAt: 'asc' as const } },
+  aiState: true,
 } satisfies Prisma.InboxConversationInclude;
 type Aggregate = Prisma.InboxConversationGetPayload<{
   include: typeof aggregateInclude;
@@ -99,7 +112,27 @@ export class InboxService {
   ) {
     return { type, label, actorId, actorName, payload };
   }
-  private project(row: Aggregate) {
+  private aiProjection(state: ConversationAiState, agentEnabled: boolean) {
+    return {
+      mode: state.mode.toLowerCase(),
+      pausedReason: state.pausedReason?.toLowerCase().replaceAll('_', '-'),
+      pausedAt: state.pausedAt?.toISOString() ?? null,
+      resumeAt: state.resumeAt?.toISOString() ?? null,
+      agentEnabled,
+      version: state.version,
+    };
+  }
+  private async isAgentEnabled(state: ConversationAiState): Promise<boolean> {
+    return (
+      (
+        await this.repo.db.aiAgent.findUnique({
+          where: { id: state.agentId },
+          select: { enabled: true },
+        })
+      )?.enabled ?? false
+    );
+  }
+  private project(row: Aggregate, agentEnabled = false) {
     return {
       id: row.id,
       customerId: row.customerId,
@@ -116,6 +149,7 @@ export class InboxService {
       previousStatus: row.previousStatus
         ? statusWire(row.previousStatus)
         : undefined,
+      ai: row.aiState ? this.aiProjection(row.aiState, agentEnabled) : null,
       customer: {
         id: row.customer.id,
         name: row.customer.name,
@@ -195,11 +229,18 @@ export class InboxService {
       systemEvents: row.systemEvents.map((e) => ({
         id: e.id,
         conversationId: e.conversationId,
+        type: e.type,
         label: e.label,
         actorName: e.actorName,
         occurredAt: e.occurredAt.toISOString(),
       })),
     };
+  }
+  private async projectWithAi(row: Aggregate) {
+    return this.project(
+      row,
+      row.aiState ? await this.isAgentEnabled(row.aiState) : false,
+    );
   }
   private async full(c: CallerContext, id: string, includeDeleted = false) {
     const visible = await this.repo.visible(c, id, includeDeleted);
@@ -305,7 +346,7 @@ export class InboxService {
     const items = rows.slice(0, q.limit);
     const last = items.at(-1);
     return {
-      items: items.map((x) => this.project(x)),
+      items: await Promise.all(items.map((x) => this.projectWithAi(x))),
       total,
       nextCursor:
         hasMore && last
@@ -323,9 +364,84 @@ export class InboxService {
   async detail(c: CallerContext, id: string) {
     const row = await this.full(c, id);
     return {
-      ...this.project(row),
+      ...(await this.projectWithAi(row)),
       crm: await this.crm.summary(row.customerId),
     };
+  }
+  async getAiState(c: CallerContext, conversationId: string) {
+    const row = await this.full(c, conversationId);
+    if (!row.aiState) return null;
+    const state = this.aiProjection(
+      row.aiState,
+      await this.isAgentEnabled(row.aiState),
+    );
+    return {
+      mode: state.mode,
+      pausedReason: state.pausedReason,
+      pausedAt: state.pausedAt,
+      resumeAt: state.resumeAt,
+      agentEnabled: state.agentEnabled,
+    };
+  }
+  async setAiMode(c: CallerContext, conversationId: string, dto: AiControlDto) {
+    this.policy.assert(c, 'inbox.ai.control');
+    const visible = await this.full(c, conversationId);
+    const state = visible.aiState;
+    if (!state) throw new NotFoundException();
+    if (state.version !== dto.expectedVersion)
+      throw new VersionConflictException(state.version);
+
+    const now = new Date();
+    const updated = await this.repo.db.$transaction(async (tx) => {
+      const result = await tx.conversationAiState.updateMany({
+        where: { conversationId, version: dto.expectedVersion },
+        data:
+          dto.action === 'pause'
+            ? {
+                mode: 'PAUSED',
+                pausedReason: 'MANUAL',
+                pausedAt: now,
+                pausedByAccountId: c.accountId,
+                resumeAt: null,
+                version: { increment: 1 },
+              }
+            : {
+                mode: 'AUTO',
+                pausedReason: null,
+                pausedAt: null,
+                pausedByAccountId: null,
+                resumeAt: null,
+                turnSeq: { increment: 1 },
+                version: { increment: 1 },
+              },
+      });
+      if (result.count !== 1) {
+        const current = await tx.conversationAiState.findUnique({
+          where: { conversationId },
+          select: { version: true },
+        });
+        throw new VersionConflictException(
+          current?.version ?? dto.expectedVersion,
+        );
+      }
+      await tx.inboxSystemEvent.create({
+        data: {
+          conversationId,
+          ...this.event(
+            c,
+            dto.action === 'pause' ? 'ai.paused.manual' : 'ai.resumed',
+            dto.action === 'pause'
+              ? 'أُوقف المساعد الذكي مؤقتًا'
+              : 'استؤنف المساعد الذكي',
+          ),
+        },
+      });
+      return tx.conversationAiState.findUniqueOrThrow({
+        where: { conversationId },
+      });
+    });
+    this.realtime.publish();
+    return this.aiProjection(updated, await this.isAgentEnabled(updated));
   }
   async markRead(c: CallerContext, id: string) {
     const current = await this.full(c, id);
@@ -343,7 +459,7 @@ export class InboxService {
         where: { id },
         data: { unreadCount: 0, version: { increment: 1 } },
       });
-    return this.project(await this.full(c, id));
+    return this.projectWithAi(await this.full(c, id));
   }
   async dashboard(c: CallerContext, q: InboxListDto) {
     const org = await this.repo.organizationId();
@@ -687,7 +803,7 @@ export class InboxService {
       });
       throw error;
     }
-    return this.project(await this.full(c, id));
+    return this.projectWithAi(await this.full(c, id));
   }
   /**
    * The AI's only way to speak. Deliberately takes no CallerContext, so it is
@@ -870,7 +986,7 @@ export class InboxService {
       row.assignedEmployeeId === dto.employeeId &&
       row.assignedTeamId === dto.teamId
     )
-      return this.project(row);
+      return this.projectWithAi(row);
     const org = row.organizationId;
     const employee = dto.employeeId
       ? await this.repo.db.account.findFirst({
@@ -925,13 +1041,13 @@ export class InboxService {
         },
       });
     });
-    return this.project(await this.full(c, id));
+    return this.projectWithAi(await this.full(c, id));
   }
   async changeStatus(c: CallerContext, id: string, status: string) {
     this.policy.assert(c, 'inbox.change.status');
     const row = await this.full(c, id);
     this.assertMutable(row);
-    if (row.status === statusDb(status)) return this.project(row);
+    if (row.status === statusDb(status)) return this.projectWithAi(row);
     await this.repo.db.inboxConversation.update({
       where: { id },
       data: {
@@ -948,7 +1064,7 @@ export class InboxService {
         },
       },
     });
-    return this.project(await this.full(c, id));
+    return this.projectWithAi(await this.full(c, id));
   }
   async toggleTag(c: CallerContext, id: string, tagId: string) {
     this.policy.assert(c, 'inbox.manage.tags');
@@ -982,7 +1098,7 @@ export class InboxService {
         },
       });
     });
-    return this.project(await this.full(c, id));
+    return this.projectWithAi(await this.full(c, id));
   }
   private async lifecycle(
     c: CallerContext,
@@ -992,9 +1108,9 @@ export class InboxService {
     this.policy.assert(c, `inbox.${action}`);
     const row = await this.full(c, id, action === 'restore');
     if (action === 'archive' && row.status === 'ARCHIVED')
-      return this.project(row);
+      return this.projectWithAi(row);
     if (action === 'restore' && !row.deletedAt && row.status !== 'ARCHIVED')
-      return this.project(row);
+      return this.projectWithAi(row);
     const now = new Date();
     await this.repo.db.inboxConversation.update({
       where: { id },
@@ -1045,7 +1161,7 @@ export class InboxService {
               },
     });
     if (action === 'delete') return;
-    return this.project(await this.full(c, id));
+    return this.projectWithAi(await this.full(c, id));
   }
   async archive(c: CallerContext, id: string) {
     const result = await this.lifecycle(c, id, 'archive');

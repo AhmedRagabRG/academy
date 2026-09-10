@@ -67,4 +67,6 @@ export interface OpenAiConfig {
 export interface AiConfig {
   enabled: boolean;
   queueEnabled: boolean;
+  resumeSweepEnabled: boolean;
+  resumeSweepMs: number;
 }

@@ -27,6 +27,7 @@ export const mockRole: Role = {
     "inbox.change.status",
     "inbox.manage.tags",
     "inbox.manage.notes",
+    "inbox.ai.control",
     "inbox.archive",
     "inbox.delete",
     "inbox.restore",

@@ -18,6 +18,7 @@ import { RequirePermissions } from '../../core/decorators/require-permissions.de
 import type { CallerContext } from '../../shared/types/caller-context';
 import type { UploadedFile as StoredFile } from '../../storage/storage.service.interface';
 import {
+  AiControlDto,
   AssignmentDto,
   InboxListDto,
   NoteDto,
@@ -75,6 +76,15 @@ export class InboxController {
     @Body() dto: ReplyDto,
   ) {
     return this.inbox.sendReply(c, id, dto);
+  }
+  @Post(':id/ai')
+  @RequirePermissions('inbox.ai.control')
+  controlAi(
+    @CurrentCaller() c: CallerContext,
+    @Param('id') id: string,
+    @Body() dto: AiControlDto,
+  ) {
+    return this.inbox.setAiMode(c, id, dto);
   }
   @Post(':id/assignment') assign(
     @CurrentCaller() c: CallerContext,

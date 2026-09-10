@@ -8,12 +8,7 @@ import {
   conversations as conversationSeeds,
   customers,
 } from "../data/inbox-fixtures"
-import {
-  employees,
-  platforms,
-  tags,
-  teams,
-} from "../data/inbox-lookups"
+import { employees, platforms, tags, teams } from "../data/inbox-lookups"
 import {
   acceptedAttachmentTypes,
   attachmentLimit,
@@ -154,6 +149,7 @@ class MockInboxService implements InboxService {
     row.systemEvents.push({
       id: crypto.randomUUID(),
       conversationId: row.id,
+      type: "conversation.updated",
       label,
       actorName: "أحمد محمد",
       occurredAt: row.lastActivityAt,
@@ -355,6 +351,37 @@ class MockInboxService implements InboxService {
         : (row.previousStatus ?? "open")
     this.touch(row, "تمت استعادة المحادثة")
     return this.project(row)
+  }
+  async setAiMode(
+    id: ConversationId,
+    action: "pause" | "resume",
+    expectedVersion: number
+  ) {
+    this.require(inboxPermissions.aiControl)
+    const row = this.find(id)
+    if (!row.ai) throw new InboxError("NOT_FOUND", "حالة المساعد غير موجودة")
+    if (row.ai.version !== expectedVersion)
+      throw new InboxError("CONFLICT", "تم تعديل حالة المساعد")
+    row.ai = {
+      ...row.ai,
+      mode: action === "pause" ? "paused" : "auto",
+      pausedReason: action === "pause" ? "manual" : null,
+      pausedAt: action === "pause" ? new Date().toISOString() : null,
+      resumeAt: null,
+      version: row.ai.version + 1,
+    }
+    row.systemEvents.push({
+      id: crypto.randomUUID(),
+      conversationId: row.id,
+      type: action === "pause" ? "ai.paused.manual" : "ai.resumed",
+      label:
+        action === "pause"
+          ? "أُوقف المساعد الذكي مؤقتًا"
+          : "استؤنف المساعد الذكي",
+      actorName: "أحمد محمد",
+      occurredAt: new Date().toISOString(),
+    })
+    return structuredClone(row.ai)
   }
   async addNote(id: ConversationId, content: string) {
     this.require(inboxPermissions.manageNotes)

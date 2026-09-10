@@ -12,6 +12,7 @@ import { MessageComposer } from "../components/message-composer"
 import { AssignmentDialog } from "../components/assignment-dialog"
 import { ConversationStatusActions } from "../components/conversation-status-actions"
 import { InboxResponsiveNavigation } from "../components/inbox-responsive-navigation"
+import { AiControlPanel } from "../components/ai-control-panel"
 
 export function ConversationWorkspace({ lookups }: { lookups: InboxLookups }) {
   const conversation = useInboxConversation()
@@ -69,6 +70,9 @@ export function ConversationWorkspace({ lookups }: { lookups: InboxLookups }) {
           </div>
         }
       />
+      <div className="border-b p-3">
+        <AiControlPanel conversation={detail} />
+      </div>
       <MessageList messages={detail.messages} />
       <MessageComposer conversationId={detail.id} allowed={canReply} />
     </>

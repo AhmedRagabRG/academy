@@ -6267,6 +6267,18 @@ interfaces under <code>apps/web/src/features/*/services/*-service.ts</code>.
   message layout; author type identifies who wrote the message independently of
   whether it is incoming or outgoing.</p>
 </section>
+<section id="inbox-ai-control-contract-amendment">
+  <h2>Inbox — AI control contract amendment</h2>
+  <p>Conversation list and detail projections include a nullable <code>ai</code> block with
+  <code>mode</code>, <code>pausedReason</code>, <code>pausedAt</code>, <code>resumeAt</code>,
+  <code>agentEnabled</code>, and the AI state's concurrency <code>version</code>. Enum values use
+  lowercase hyphenated wire names, including <code>human-reply</code> and
+  <code>error-budget</code>.</p>
+  <p><code>POST /api/v1/inbox/:id/ai</code> requires <code>inbox.ai.control</code> and accepts
+  <code>{ action: "pause" | "resume", expectedVersion: number }</code>. It returns the updated
+  AI block. A stale version returns the standard <code>409 VERSION_CONFLICT</code>; a conversation
+  outside the caller's inbox visibility is never disclosed.</p>
+</section>
 <section id="identity-contract-amendment">
   <h2>Identity &amp; Access Management — approved contract amendment</h2>
   <p>The employee context uses <code>roleIds[]</code>, resolved <code>roles[]</code>, and the

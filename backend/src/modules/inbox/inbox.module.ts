@@ -37,6 +37,11 @@ import { MetaWebhookService } from './meta/meta-webhook.service';
   // The channel credentials and Graph client are the single place a Meta
   // token is resolved, so the campaigns module reuses them rather than
   // re-implementing token lookup.
-  exports: [InboxService, ChannelCredentialsService, MetaGraphClient],
+  exports: [
+    InboxService,
+    InboxRealtimeService,
+    ChannelCredentialsService,
+    MetaGraphClient,
+  ],
 })
 export class InboxModule {}

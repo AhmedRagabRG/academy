@@ -90,6 +90,8 @@ export const openaiConfig = registerAs('openai', (): OpenAiConfig => ({
 export const aiConfig = registerAs('ai', (): AiConfig => ({
   enabled: process.env.AI_ENABLED === 'true',
   queueEnabled: process.env.AI_QUEUE_ENABLED === 'true',
+  resumeSweepEnabled: process.env.AI_RESUME_SWEEP_ENABLED !== 'false',
+  resumeSweepMs: Number(process.env.AI_RESUME_SWEEP_MS ?? 30000),
 }));
 export const configuration = [
   appConfig,

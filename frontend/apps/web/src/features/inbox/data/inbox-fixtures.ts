@@ -80,6 +80,14 @@ export const conversations: Conversation[] = customers.map(
           : "شكرًا، سأراجع المستندات وأعود إليكم",
       lastActivityAt: sentAt,
       version: 1,
+      ai: {
+        mode: "auto",
+        pausedReason: null,
+        pausedAt: null,
+        resumeAt: null,
+        agentEnabled: true,
+        version: 1,
+      },
       messages: [
         {
           id: `message-${index}-1` as MessageId,

@@ -229,6 +229,14 @@ export const httpInboxService: InboxService = {
       )
     )
   },
+  async setAiMode(id, action, expectedVersion) {
+    return guard(() =>
+      httpClient.post<NonNullable<ApiConversation["ai"]>>(`${path(id)}/ai`, {
+        action,
+        expectedVersion,
+      })
+    )
+  },
   async delete(id) {
     return guard(() => httpClient.delete<void>(path(id)))
   },

@@ -1,6 +1,7 @@
 import type {
   Attachment,
   AssignmentHistoryEvent,
+  ConversationAiState,
   Customer,
   Employee,
   InternalNote,
@@ -57,6 +58,7 @@ export interface ApiConversation {
   version: number
   deletedAt?: string
   previousStatus?: ConversationStatus
+  ai: ConversationAiState | null
   customer: Omit<Customer, "id"> & { id: string }
   platform: ApiNamedLookup & { icon: string }
   employee: (ApiNamedLookup & { teamIds: string[]; avatarUrl?: string }) | null
@@ -87,7 +89,10 @@ export interface ApiConversation {
     occurredAt: string
   }>
   systemEvents: Array<
-    Omit<SystemEvent, "conversationId"> & { conversationId: string }
+    Omit<SystemEvent, "conversationId" | "type"> & {
+      conversationId: string
+      type?: string
+    }
   >
 }
 
@@ -167,6 +172,7 @@ export function toConversation(row: ApiConversation): ConversationDetail {
     })) as AssignmentHistoryEvent[],
     systemEvents: row.systemEvents.map((event) => ({
       ...event,
+      type: event.type ?? "unknown",
       conversationId: event.conversationId as ConversationId,
     })),
     // Only the detail read carries the CRM link; list rows omit it.

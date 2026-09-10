@@ -90,6 +90,11 @@ export class AssignmentDto {
   @IsOptional() @IsUUID() teamId: string | null = null;
 }
 
+export class AiControlDto {
+  @IsIn(['pause', 'resume']) action!: 'pause' | 'resume';
+  @IsInt() @Min(1) expectedVersion!: number;
+}
+
 export class StatusDto {
   @IsIn(INBOX_STATUSES) status!: string;
 }

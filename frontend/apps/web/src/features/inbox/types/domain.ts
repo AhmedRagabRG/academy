@@ -96,9 +96,23 @@ export interface AssignmentHistoryEvent {
 export interface SystemEvent {
   id: string
   conversationId: ConversationId
+  type: string
   label: string
   actorName: string
   occurredAt: string
+}
+
+export type AiMode = "auto" | "paused" | "off"
+export type AiPauseReason =
+  "human-reply" | "manual" | "escalated" | "handoff" | "error-budget"
+
+export interface ConversationAiState {
+  mode: AiMode
+  pausedReason: AiPauseReason | null
+  pausedAt: string | null
+  resumeAt: string | null
+  agentEnabled: boolean
+  version: number
 }
 
 export interface Conversation {
@@ -116,6 +130,7 @@ export interface Conversation {
   notes: InternalNote[]
   assignmentHistory: AssignmentHistoryEvent[]
   systemEvents: SystemEvent[]
+  ai: ConversationAiState | null
   deletedAt?: string
   previousStatus?: ConversationStatus
   version: number

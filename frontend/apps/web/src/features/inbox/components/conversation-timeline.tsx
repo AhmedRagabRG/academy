@@ -3,6 +3,15 @@ import {
   type TimelineItem,
 } from "@/shared/components/data-display/timeline"
 import type { ConversationDetail } from "../types/projections"
+
+const aiEventLabels: Record<string, string> = {
+  "ai.reply.sent": "أرسل المساعد الذكي ردًا",
+  "ai.reply.suppressed": "أُوقف رد المساعد الذكي",
+  "ai.paused.human": "أُوقف المساعد بعد رد موظف",
+  "ai.paused.manual": "أُوقف المساعد يدويًا",
+  "ai.resumed": "استؤنف المساعد الذكي",
+}
+
 export function ConversationTimeline({
   conversation,
 }: {
@@ -22,7 +31,7 @@ export function ConversationTimeline({
     })),
     ...conversation.systemEvents.map((item) => ({
       id: item.id,
-      title: item.label,
+      title: aiEventLabels[item.type] ?? item.label,
       actor: item.actorName,
       occurredAt: item.occurredAt,
       occurredAtLabel: new Intl.DateTimeFormat("ar-EG", {

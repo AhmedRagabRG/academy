@@ -33,6 +33,8 @@ export interface Employee extends NamedLookup<EmployeeId> {
 
 export type Team = NamedLookup<TeamId>
 export interface Platform extends NamedLookup<PlatformId> {
+  /** Stable channel key ('whatsapp', 'messenger', ...), distinct from the row id. */
+  code: string
   icon: string
 }
 export interface Tag extends NamedLookup<TagId> {

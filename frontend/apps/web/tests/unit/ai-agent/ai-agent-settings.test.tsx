@@ -120,3 +120,27 @@ describe("catalogs match the backend contract", () => {
     expect(crmFieldCatalog.map((entry) => entry.name)).not.toContain("phone")
   })
 })
+
+/**
+ * Regression: the channel checkboxes were wired to `platform.id`, so saving sent
+ * UUIDs into `enabledPlatformCodes` and the API answered
+ * "قناة غير معروفة: <uuid>". Both sides are plain `string[]`, so nothing in the
+ * type system catches it — hence this test.
+ */
+describe("channel selection uses codes, not row ids", () => {
+  it("keeps id and code distinct in the lookups contract", async () => {
+    const { platforms } = await import("@/features/inbox/data/inbox-lookups")
+    for (const platform of platforms) {
+      expect(platform.code).toBeTruthy()
+      expect(platform.code).not.toBe(platform.id)
+      // A code is a stable slug; a row id is a uuid-ish key.
+      expect(platform.code).toMatch(/^[a-z][a-z0-9-]*$/)
+    }
+  })
+
+  it("covers the channels the agent can actually answer on", async () => {
+    const { platforms } = await import("@/features/inbox/data/inbox-lookups")
+    const codes = platforms.map((platform) => platform.code)
+    expect(codes).toEqual(expect.arrayContaining(["whatsapp", "messenger", "instagram"]))
+  })
+})

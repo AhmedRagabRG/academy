@@ -20,7 +20,12 @@ import type { ConversationAiState, InternalNote } from "../types/domain"
 import type { Attachment } from "../types/domain"
 
 export interface InboxLookups {
-  platforms: { id: string; label: string }[]
+  /**
+   * `code` is the stable channel key ('whatsapp', 'messenger', ...) and is what
+   * anything configuring per-channel behaviour must use; `id` is only the row
+   * key inbox filters pass around.
+   */
+  platforms: { id: string; code: string; label: string }[]
   statuses: { id: ConversationStatus; label: string }[]
   tags: { id: string; label: string; color: string }[]
   teams: { id: string; label: string }[]

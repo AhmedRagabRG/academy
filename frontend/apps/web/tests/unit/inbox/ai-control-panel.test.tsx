@@ -46,6 +46,7 @@ const conversation = {
   },
   platform: {
     id: "platform" as never,
+    code: "whatsapp",
     label: "واتساب",
     icon: "message",
     active: true,

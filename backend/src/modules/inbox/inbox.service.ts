@@ -517,7 +517,15 @@ export class InboxService {
       },
     });
     return {
-      platforms: platforms.map((x) => ({ id: x.id, label: x.label })),
+      // `code` is the stable channel key ('whatsapp', 'messenger', ...). The id
+      // is what inbox filters use, but anything configuring behaviour per
+      // channel — the AI agent's enabled channels, for one — must key off the
+      // code, because that is what the conversation carries at runtime.
+      platforms: platforms.map((x) => ({
+        id: x.id,
+        code: x.code,
+        label: x.label,
+      })),
       statuses: Object.entries(labels).map(([id, label]) => ({ id, label })),
       tags: tags.map((x) => ({ id: x.id, label: x.label, color: x.color })),
       teams: teams.map((x) => ({ id: x.id, label: x.name })),

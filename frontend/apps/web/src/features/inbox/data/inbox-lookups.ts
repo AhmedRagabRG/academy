@@ -33,20 +33,44 @@ export const employees: Employee[] = [
 export const platforms: Platform[] = [
   {
     id: "platform-web" as PlatformId,
+    code: "web",
     label: "محادثة الموقع",
     icon: "MessageCircle",
     active: true,
   },
   {
     id: "platform-email" as PlatformId,
+    code: "email",
     label: "البريد الإلكتروني",
     icon: "Mail",
     active: true,
   },
   {
     id: "platform-phone" as PlatformId,
+    code: "phone",
     label: "الهاتف",
     icon: "Phone",
+    active: true,
+  },
+  {
+    id: "platform-whatsapp" as PlatformId,
+    code: "whatsapp",
+    label: "واتساب",
+    icon: "MessageCircle",
+    active: true,
+  },
+  {
+    id: "platform-messenger" as PlatformId,
+    code: "messenger",
+    label: "ماسنجر",
+    icon: "MessageCircle",
+    active: true,
+  },
+  {
+    id: "platform-instagram" as PlatformId,
+    code: "instagram",
+    label: "إنستغرام",
+    icon: "MessageCircle",
     active: true,
   },
 ]

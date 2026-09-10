@@ -148,16 +148,22 @@ export function AiAgentSettingsScreen() {
         ) : (
           <div className="flex flex-wrap gap-3">
             {platforms.map((platform) => (
-              <label key={platform.id} className="flex items-center gap-2 text-sm">
+              // The agent keys channels by CODE, not by row id: the code is what
+              // an inbound conversation carries at runtime. Sending ids here is
+              // what produced "قناة غير معروفة: <uuid>".
+              <label
+                key={platform.code}
+                className="flex items-center gap-2 text-sm"
+              >
                 <input
                   type="checkbox"
                   disabled={!canManage}
-                  checked={draft.enabledPlatformCodes.includes(platform.id)}
+                  checked={draft.enabledPlatformCodes.includes(platform.code)}
                   onChange={() =>
                     patch({
                       enabledPlatformCodes: toggleIn(
                         draft.enabledPlatformCodes,
-                        platform.id,
+                        platform.code,
                       ),
                     })
                   }

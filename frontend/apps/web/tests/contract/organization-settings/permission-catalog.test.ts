@@ -38,6 +38,7 @@ describe("the permission catalogue", () => {
       "pipeline",
       "settings",
       "tickets",
+      "ai",
     ])
   })
 

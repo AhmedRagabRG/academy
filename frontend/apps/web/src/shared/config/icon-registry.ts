@@ -1,5 +1,6 @@
 import {
   Blocks,
+  BookOpenText,
   Building2,
   Contact,
   Gauge,
@@ -9,6 +10,7 @@ import {
   Tickets,
   TrendingUp,
   Settings2,
+  Sparkles,
   ShieldCheck,
   SlidersHorizontal,
   UsersRound,
@@ -28,6 +30,8 @@ export const iconRegistry = {
   tickets: Tickets,
   contacts: Contact,
   pipeline: TrendingUp,
+  ai: Sparkles,
+  "ai-knowledge": BookOpenText,
   campaigns: Megaphone,
 } satisfies Record<string, LucideIcon>
 export type NavigationIconKey = keyof typeof iconRegistry

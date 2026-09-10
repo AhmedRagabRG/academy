@@ -14,5 +14,7 @@ export const organizationSettingsNavigation: NavigationItem = {
     { id: "settings-roles", title: "الأدوار", titleKey: "nav.settings.roles", iconKey: "roles", route: "/settings/roles", permissionKey: permission("settings.roles.view") },
     { id: "settings-permissions", title: "الصلاحيات", titleKey: "nav.settings.permissions", iconKey: "permissions", route: "/settings/permissions", permissionKey: permission("settings.permissions.view") },
     { id: "settings-general", title: "الإعدادات العامة", titleKey: "nav.settings.general", iconKey: "general", route: "/settings/general", permissionKey: permission("settings.general.view") },
+    { id: "settings-ai", title: "المساعد الذكي", titleKey: "nav.settings.ai", iconKey: "ai", route: "/settings/ai", permissionKey: permission("ai.settings.view") },
+    { id: "settings-ai-knowledge", title: "قواعد المعرفة", titleKey: "nav.settings.aiKnowledge", iconKey: "ai-knowledge", route: "/settings/ai/knowledge", permissionKey: permission("ai.knowledge.view") },
   ],
 }

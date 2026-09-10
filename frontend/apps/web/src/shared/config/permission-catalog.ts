@@ -143,6 +143,14 @@ const tickets = group("tickets", "إدارة التذاكر", [
   ["delete", "حذف", "حذف تذكرة إدارياً"],
 ])
 
+const ai = group("ai", "المساعد الذكي", [
+  ["settings.view", "عرض إعدادات المساعد", "الاطلاع على إعدادات الرد الآلي"],
+  ["settings.manage", "تعديل إعدادات المساعد", "تشغيل المساعد وضبط قنواته ومعرفته"],
+  ["knowledge.view", "عرض قواعد المعرفة", "الاطلاع على قواعد المعرفة ومصادرها"],
+  ["knowledge.manage", "إدارة قواعد المعرفة", "إضافة المصادر وحذفها وإعادة فهرستها"],
+  ["runs.view", "عرض نشاط المساعد", "الاطلاع على سجل تشغيل المساعد وتكلفته"],
+])
+
 /** Ordered to match the sidebar, so the matrix reads like the application. */
 export const permissionCatalog: readonly PermissionGroupDefinition[] = [
   dashboard,
@@ -152,6 +160,7 @@ export const permissionCatalog: readonly PermissionGroupDefinition[] = [
   pipeline,
   settings,
   tickets,
+  ai,
 ]
 
 /** Every key in the catalogue, flattened. */

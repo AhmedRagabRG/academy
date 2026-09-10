@@ -31,35 +31,10 @@ export class AiTurnEnqueueService {
   async enqueue(conversationId: string): Promise<void> {
     if (!this.queue) return;
     try {
-      const state = await this.db.conversationAiState.findUnique({
-        where: { conversationId },
-        select: { agentId: true, turnSeq: true, mode: true, organizationId: true },
-      });
-      if (!state || state.mode === 'OFF') return;
-
-      const turn = await this.db.aiTurn.create({
-        data: {
-          organizationId: state.organizationId,
-          conversationId,
-          agentId: state.agentId,
-          turnSeqAtStart: state.turnSeq,
-          status: 'QUEUED',
-        },
-        select: { id: true },
-      });
-
-      // One job per conversation. BullMQ no-ops add() for an existing id, which
-      // is exactly the debounce we want for a burst; the processor re-checks
-      // state at run time so a collapsed job still sees the newest messages.
-      await this.queue.add(
-        'turn',
-        { conversationId, aiTurnId: turn.id },
-        {
-          jobId: `ai:${conversationId}`,
-          delay: DEBOUNCE_MS,
-          removeOnComplete: 1000,
-          removeOnFail: 5000,
-        },
+      await this.mintAndAdd(
+        conversationId,
+        `ai-${conversationId}`,
+        DEBOUNCE_MS,
       );
     } catch (error) {
       this.logger.error(
@@ -68,5 +43,73 @@ export class AiTurnEnqueueService {
         }`,
       );
     }
+  }
+
+  /**
+   * Re-drives the conversation after a turn was fenced out by a newer inbound
+   * message (not by a human — the caller checks mode). The burst-debounce id
+   * is still occupied by the job that is being suppressed, and BullMQ silently
+   * no-ops add() for an existing id, so the follow-up needs its own id. It is
+   * unique per fenced turn, runs the same eligibility gate, and completes into
+   * removal — so it cannot accumulate.
+   */
+  async enqueueFollowUp(conversationId: string, fencedTurnId: string) {
+    if (!this.queue) return;
+    try {
+      await this.mintAndAdd(
+        conversationId,
+        `ai-${conversationId}-after-${fencedTurnId}`,
+        DEBOUNCE_MS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to re-enqueue AI turn for ${conversationId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private async mintAndAdd(
+    conversationId: string,
+    jobId: string,
+    delayMs: number,
+  ): Promise<void> {
+    const state = await this.db.conversationAiState.findUnique({
+      where: { conversationId },
+      select: {
+        agentId: true,
+        turnSeq: true,
+        mode: true,
+        organizationId: true,
+      },
+    });
+    if (!state || state.mode === 'OFF') return;
+
+    const turn = await this.db.aiTurn.create({
+      data: {
+        organizationId: state.organizationId,
+        conversationId,
+        agentId: state.agentId,
+        turnSeqAtStart: state.turnSeq,
+        status: 'QUEUED',
+      },
+      select: { id: true },
+    });
+
+    // One job per conversation for the debounce id: BullMQ no-ops add() while
+    // a job with that id still exists, which is exactly the collapse we want
+    // for a burst. The id must therefore be freed on completion — and it can
+    // contain no ':' (BullMQ 6 rejects custom ids with it).
+    await this.queue!.add(
+      'turn',
+      { conversationId, aiTurnId: turn.id },
+      {
+        jobId,
+        delay: delayMs,
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
   }
 }

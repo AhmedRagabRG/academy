@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'node:crypto';
 import { Prisma } from '../../../prisma/generated/client';
 import { CAMPAIGN_CORRELATION_PREFIX } from '../../../src/core/events/meta-message-status.event';
+import { INBOX_MESSAGE_RECEIVED_EVENT } from '../../../src/core/events/inbox-message-received.event';
 import type { PrismaService } from '../../../src/database/prisma.service';
 import type { ChannelCredentialsService } from '../../../src/modules/inbox/channels/channel-credentials.service';
 import type { InboxCrmLinkService } from '../../../src/modules/inbox/crm/inbox-crm-link.service';
@@ -62,7 +63,10 @@ const crm = () => {
 
 /** The webhook publishes provider receipts; the tests only need a sink. */
 const emitter = () =>
-  ({ emitAsync: jest.fn().mockResolvedValue([]) }) as unknown as EventEmitter2;
+  ({
+    emit: jest.fn(),
+    emitAsync: jest.fn().mockResolvedValue([]),
+  }) as unknown as EventEmitter2;
 
 const messengerRoute = {
   organizationId: 'organization-id',
@@ -821,6 +825,8 @@ describe('MetaWebhookService AI fencing token', () => {
     );
     const { service: channelService } = channels(messengerRoute);
     const { service: crmService } = crm();
+    const emit = jest.fn();
+    const events = { emit, emitAsync: jest.fn() } as unknown as EventEmitter2;
     const service = new MetaWebhookService(
       new ConfigService({
         meta: { appSecret: 'app-secret', verifyToken: 'verify-token' },
@@ -829,7 +835,7 @@ describe('MetaWebhookService AI fencing token', () => {
       new InboxRealtimeService(),
       channelService,
       crmService,
-      emitter(),
+      events,
     );
     await service.ingest({
       object: 'page',
@@ -855,5 +861,52 @@ describe('MetaWebhookService AI fencing token', () => {
     // "first statement after it", so the mock records the transaction's open
     // window and the assertion is that the increment landed inside it.
     expect(incrementedInsideTransaction).toBe(true);
+    // The AI turn is enqueued from the emitted event, so the event must fire
+    // for a genuinely new message with the persisted conversation id.
+    expect(emit).toHaveBeenCalledWith(
+      INBOX_MESSAGE_RECEIVED_EVENT,
+      expect.objectContaining({
+        organizationId: 'organization-id',
+        conversationId: 'conversation-id',
+        platformCode: 'messenger',
+      }),
+    );
+  });
+
+  it('does not emit the AI event when the delivery is a duplicate', async () => {
+    const db = database();
+    (db.inboxConversation as { upsert: jest.Mock }).upsert = jest.fn(() => {
+      throw duplicateProviderMessageError();
+    });
+    const emit = jest.fn();
+    const events = { emit, emitAsync: jest.fn() } as unknown as EventEmitter2;
+    const service = new MetaWebhookService(
+      new ConfigService({
+        meta: { appSecret: 'app-secret', verifyToken: 'verify-token' },
+      }),
+      db as unknown as PrismaService,
+      new InboxRealtimeService(),
+      channels(messengerRoute).service,
+      crm().service,
+      events,
+    );
+    await service.ingest({
+      object: 'page',
+      entry: [
+        {
+          id: 'page-id',
+          messaging: [
+            {
+              sender: { id: 'psid-9' },
+              timestamp: 1_786_333_200_000,
+              message: { mid: 'mid-dup-1', text: 'مرحبا' },
+            },
+          ],
+        },
+      ],
+    });
+    // A Meta redelivery must not mint a second AI turn for a message the
+    // customer sent once — the recovery branch leaves the event silent.
+    expect(emit).not.toHaveBeenCalled();
   });
 });

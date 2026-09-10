@@ -32,7 +32,9 @@ export interface AgentTool {
    * string rather than throwing is deliberate: a malformed call is the model's
    * mistake to correct on the next iteration, not a job failure.
    */
-  parse(raw: string): { ok: true; input: unknown } | { ok: false; error: string };
+  parse(
+    raw: string,
+  ): { ok: true; input: unknown } | { ok: false; error: string };
   execute(input: never, context: AiRunContext): Promise<ToolResult>;
 }
 

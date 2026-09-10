@@ -65,7 +65,8 @@ export class AiEligibilityService {
       const due =
         state.resumeAt !== null &&
         state.resumeAt <= new Date() &&
-        (state.pausedReason === 'HUMAN_REPLY' || state.pausedReason === 'MANUAL');
+        (state.pausedReason === 'HUMAN_REPLY' ||
+          state.pausedReason === 'MANUAL');
       if (!due) return { eligible: false, reason: 'mode-paused' };
       const resumed = await this.db.conversationAiState.updateMany({
         where: { conversationId, turnSeq, mode: 'PAUSED' },
@@ -78,7 +79,8 @@ export class AiEligibilityService {
           version: { increment: 1 },
         },
       });
-      if (resumed.count !== 1) return { eligible: false, reason: 'mode-paused' };
+      if (resumed.count !== 1)
+        return { eligible: false, reason: 'mode-paused' };
       turnSeq += 1;
     }
 
@@ -91,7 +93,9 @@ export class AiEligibilityService {
     if (!agent.enabledPlatformCodes.includes(conversation.platform.code))
       return { eligible: false, reason: 'channel-disabled' };
 
-    const knowledgeBaseIds = agent.knowledgeBases.map((row) => row.knowledgeBaseId);
+    const knowledgeBaseIds = agent.knowledgeBases.map(
+      (row) => row.knowledgeBaseId,
+    );
     if (!knowledgeBaseIds.length)
       return { eligible: false, reason: 'no-knowledge-base' };
 

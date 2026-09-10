@@ -57,6 +57,8 @@ export class AiOrchestratorService {
     temperature: number;
     fallbackMessage: string;
     maxToolCalls: number;
+    /** The customer's newest message asked something; a factual reply must be grounded. */
+    customerAsked?: boolean;
   }): Promise<OrchestratorResult> {
     const messages: ChatMessage[] = [...input.history];
     const citedChunkIds: string[] = [];
@@ -79,13 +81,31 @@ export class AiOrchestratorService {
       if (!result.toolCalls.length) {
         const reply = result.content.trim();
         const grounded = citedChunkIds.length > 0;
-        // "Asked a question" and "handed off" are legitimate ungrounded replies;
-        // an ungrounded factual assertion is not.
+        // "Asked a question" is a legitimate ungrounded reply; an ungrounded
+        // factual assertion is not. Two situations make one likely: the model
+        // searched but retrieval came back under the relevance floor, or the
+        // customer asked something and the model never searched at all — the
+        // second is exactly the confident-invention case, so both fall back.
+        // A turn where the customer asked nothing and no search happened is
+        // conversation, and replacing it would turn every "عفوًا" into the
+        // fallback message.
         const asksSomething = /[?؟]\s*$/.test(reply);
         if (!reply)
-          return this.fallback(input.fallbackMessage, citedChunkIds, promptTokens, completionTokens, toolCalls);
-        if (!grounded && !asksSomething && searched)
-          return this.fallback(input.fallbackMessage, citedChunkIds, promptTokens, completionTokens, toolCalls);
+          return this.fallback(
+            input.fallbackMessage,
+            citedChunkIds,
+            promptTokens,
+            completionTokens,
+            toolCalls,
+          );
+        if (!grounded && !asksSomething && (searched || input.customerAsked))
+          return this.fallback(
+            input.fallbackMessage,
+            citedChunkIds,
+            promptTokens,
+            completionTokens,
+            toolCalls,
+          );
         return {
           reply,
           grounded,
@@ -99,6 +119,13 @@ export class AiOrchestratorService {
 
       for (const call of result.toolCalls) {
         if (toolCalls >= input.maxToolCalls) {
+          await this.record(
+            input.context,
+            call.name,
+            call.arguments,
+            'DENIED',
+            'tool budget exhausted for this turn',
+          );
           messages.push({
             role: 'assistant',
             content: null,
@@ -117,7 +144,13 @@ export class AiOrchestratorService {
         const tool = this.tools.find((entry) => entry.name === call.name);
         messages.push({ role: 'assistant', content: null, toolCalls: [call] });
         if (!tool) {
-          await this.record(input.context, call.name, call.arguments, 'DENIED', 'unknown tool');
+          await this.record(
+            input.context,
+            call.name,
+            call.arguments,
+            'DENIED',
+            'unknown tool',
+          );
           messages.push({
             role: 'tool',
             toolCallId: call.id,
@@ -129,7 +162,13 @@ export class AiOrchestratorService {
         if (!parsed.ok) {
           // Returned to the model, not thrown: a malformed call is its mistake
           // to correct, and a job failure here would lose a valid turn.
-          await this.record(input.context, tool.name, call.arguments, 'VALIDATION_ERROR', parsed.error);
+          await this.record(
+            input.context,
+            tool.name,
+            call.arguments,
+            'VALIDATION_ERROR',
+            parsed.error,
+          );
           messages.push({
             role: 'tool',
             toolCallId: call.id,
@@ -139,7 +178,10 @@ export class AiOrchestratorService {
         }
         const startedAt = performance.now();
         try {
-          const output = await tool.execute(parsed.input as never, input.context);
+          const output = await tool.execute(
+            parsed.input as never,
+            input.context,
+          );
           if (tool.name === 'kb_search') searched = true;
           if (output.citedChunkIds?.length)
             citedChunkIds.push(...output.citedChunkIds);
@@ -160,7 +202,13 @@ export class AiOrchestratorService {
           const message =
             error instanceof Error ? error.message : String(error);
           this.logger.warn({ tool: tool.name, error: message });
-          await this.record(input.context, tool.name, call.arguments, 'ERROR', message);
+          await this.record(
+            input.context,
+            tool.name,
+            call.arguments,
+            'ERROR',
+            message,
+          );
           messages.push({
             role: 'tool',
             toolCallId: call.id,
@@ -224,7 +272,7 @@ export class AiOrchestratorService {
   private safeJson(raw: string): object {
     try {
       const parsed: unknown = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? (parsed as object) : { raw };
+      return parsed && typeof parsed === 'object' ? parsed : { raw };
     } catch {
       return { raw };
     }

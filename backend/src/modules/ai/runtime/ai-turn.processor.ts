@@ -8,6 +8,7 @@ import { buildSystemPrompt } from '../prompts/system-prompt.builder';
 import { AiContextService } from './ai-context.service';
 import { AiEligibilityService } from './ai-eligibility.service';
 import { AiOrchestratorService } from './ai-orchestrator.service';
+import { AiTurnEnqueueService } from './ai-turn-enqueue.service';
 
 export interface AiTurnJob {
   conversationId: string;
@@ -27,6 +28,7 @@ export class AiTurnProcessor extends WorkerHost {
     private readonly context: AiContextService,
     private readonly orchestrator: AiOrchestratorService,
     private readonly inbox: InboxService,
+    private readonly enqueue: AiTurnEnqueueService,
   ) {
     super();
   }
@@ -66,10 +68,11 @@ export class AiTurnProcessor extends WorkerHost {
     });
 
     try {
-      const [{ messages, injectionSuspected }, contact] = await Promise.all([
-        this.context.build(conversationId),
-        this.context.contactSummary(check.contactId),
-      ]);
+      const [{ messages, injectionSuspected, customerAsked }, contact] =
+        await Promise.all([
+          this.context.build(conversationId),
+          this.context.contactSummary(check.contactId),
+        ]);
       if (injectionSuspected)
         this.logger.warn({
           conversationId,
@@ -100,6 +103,7 @@ export class AiTurnProcessor extends WorkerHost {
         temperature: agent.temperature,
         fallbackMessage: agent.fallbackMessage,
         maxToolCalls: agent.maxToolCallsPerTurn,
+        customerAsked,
       });
 
       const sent = await this.inbox.sendAiReply({
@@ -131,19 +135,63 @@ export class AiTurnProcessor extends WorkerHost {
       );
       await this.recordOutcome(conversationId, sent.status !== 'failed');
 
-      if (sent.status === 'suppressed')
+      if (sent.status === 'suppressed') {
         this.logger.log({
           conversationId,
           aiTurnId,
           message: 'turn fenced out; a human or a newer message won the race',
         });
+        await this.followUpFencedTurn(conversationId, aiTurnId);
+      } else if (
+        sent.status === 'sent' &&
+        result.usedFallback &&
+        agent.escalateOnFallback
+      ) {
+        // The fallback admits the KB could not answer. Leaving mode AUTO would
+        // have the same admission — and the same promise to fetch a human —
+        // repeated on every following message, so the handoff must actually
+        // hand off: pause with no auto-resume, exactly like an escalation.
+        await this.db.conversationAiState.updateMany({
+          where: { conversationId, mode: 'AUTO' },
+          data: {
+            mode: 'PAUSED',
+            pausedReason: 'HANDOFF',
+            pausedAt: new Date(),
+            resumeAt: null,
+            turnSeq: { increment: 1 },
+            version: { increment: 1 },
+          },
+        });
+        await this.db.inboxSystemEvent.create({
+          data: {
+            conversationId,
+            type: 'ai.handoff',
+            label: 'لم يعرف المساعد الإجابة فحوّل المحادثة إلى موظف',
+            actorId: agent.serviceAccountId,
+            actorName: agent.name,
+            payload: { aiTurnId, messageId: sent.messageId ?? null },
+          },
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await this.finish(aiTurnId, 'FAILED', {
-        errorMessage: message.slice(0, 500),
-        latencyMs: Math.round(performance.now() - startedAt),
-      });
-      await this.recordOutcome(conversationId, false);
+      const isFinalAttempt = job.attemptsMade + 1 >= (job.opts?.attempts ?? 1);
+      if (isFinalAttempt) {
+        await this.finish(aiTurnId, 'FAILED', {
+          errorMessage: message.slice(0, 500),
+          latencyMs: Math.round(performance.now() - startedAt),
+        });
+        // Count the conversation's failure budget once per exhausted turn, not
+        // per BullMQ attempt — three retries of one turn are one bad turn.
+        await this.recordOutcome(conversationId, false);
+      } else {
+        // Keep the turn RUNNING (BullMQ will retry); just keep the last error
+        // visible so a stuck turn can be diagnosed from Postgres alone.
+        await this.db.aiTurn.update({
+          where: { id: aiTurnId },
+          data: { errorMessage: message.slice(0, 500) },
+        });
+      }
       throw error;
     }
   }
@@ -196,6 +244,26 @@ export class AiTurnProcessor extends WorkerHost {
           : 'FAILED',
       { messageId: sent.messageId ?? null },
     );
+    await this.recordOutcome(conversationId, sent.status !== 'failed');
+    if (sent.status === 'suppressed')
+      await this.followUpFencedTurn(conversationId, turn.id);
+  }
+
+  /**
+   * A human pausing the conversation must not re-trigger the AI. A newer
+   * inbound message leaving mode AUTO means its own enqueue no-opped against
+   * the still-active job, so the follow-up is how it ever gets answered.
+   */
+  private async followUpFencedTurn(
+    conversationId: string,
+    fencedTurnId: string,
+  ): Promise<void> {
+    const state = await this.db.conversationAiState.findUnique({
+      where: { conversationId },
+      select: { mode: true },
+    });
+    if (state?.mode === 'AUTO')
+      await this.enqueue.enqueueFollowUp(conversationId, fencedTurnId);
   }
 
   private async finish(

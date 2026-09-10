@@ -10,6 +10,7 @@ const aiEventLabels: Record<string, string> = {
   "ai.paused.human": "أُوقف المساعد بعد رد موظف",
   "ai.paused.manual": "أُوقف المساعد يدويًا",
   "ai.resumed": "استؤنف المساعد الذكي",
+  "ai.handoff": "حوّل المساعد المحادثة إلى موظف",
 }
 
 export function ConversationTimeline({

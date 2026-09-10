@@ -50,7 +50,11 @@ export const buildSystemPrompt = (
   }
 
   if (agent.systemInstructions.trim()) {
-    lines.push('', 'تعليمات إضافية من إدارة الأكاديمية:', agent.systemInstructions.trim());
+    lines.push(
+      '',
+      'تعليمات إضافية من إدارة الأكاديمية:',
+      agent.systemInstructions.trim(),
+    );
   }
   return lines.join('\n');
 };

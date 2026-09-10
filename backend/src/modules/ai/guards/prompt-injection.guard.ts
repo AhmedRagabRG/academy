@@ -8,7 +8,8 @@
  * any fence-closing sequence inside the content itself is neutralised so a
  * customer cannot break out of it.
  */
-const FENCE_BREAKERS = /<\/?(?:customer_message|knowledge|system|instructions)[^>]*>/gi;
+const FENCE_BREAKERS =
+  /<\/?(?:customer_message|knowledge|system|instructions)[^>]*>/gi;
 
 export const fenceUntrusted = (tag: string, content: string): string => {
   const neutralised = content.replace(FENCE_BREAKERS, (match) =>

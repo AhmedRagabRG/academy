@@ -13,6 +13,10 @@ contains the approved 16-section architecture and a live "Execution Status" sect
 
 | Hash | What |
 |---|---|
+| HEAD | **Phase 5b finished — Codex's runtime audited, 3 fatal bugs fixed, tests written** (see §15) |
+| `2fdf446` | Phase 5b runtime **as Codex committed it** — never processed a single turn; see §15 |
+| `7034a7b` | docker-compose: pgvector/pg18 image + Redis service |
+| `a2b9bd3` | Phase 5a — AiAgent API + Knowledge Base/settings UI |
 | `2f72194` | Phase 2 — KB ingestion + pgvector retrieval |
 | `fc2733d` | Fix: numeric env vars rejected when actually set |
 | `19faeaa` | Phase 4b — resume sweeper, AI control endpoint, inbox UI |
@@ -22,8 +26,8 @@ contains the approved 16-section architecture and a live "Execution Status" sect
 | `7ab8eb0` | Phase 1 — AI infrastructure, inert by default |
 | `cb31fa4` | Phase 0 — committed the untracked teardown migration |
 
-**Only uncommitted change:** `D frontend/apps/web/.env.example` — this deletion **pre-existed**
-this branch. Leave it alone; it is not ours.
+> Note: commit `2fdf446` also swept in the pre-existing `D frontend/apps/web/.env.example`
+> deletion that §2 below said to leave alone. It is done; do not re-litigate it.
 
 ---
 
@@ -36,7 +40,8 @@ this branch. Leave it alone; it is not ours.
 | 2 — Knowledge Base **backend** | **DONE** |
 | 3 — AI schema + service account + authorType | **DONE** |
 | 4 — human takeover | **DONE**, mutation-tested |
-| **5 — agent runtime + KB frontend** | **NOT STARTED — you start here** |
+| **5a — agent API + KB/settings UI** | **DONE** (`a2b9bd3`) |
+| **5b — agent runtime (KB answering)** | **DONE** (see §15) |
 | 6 — write tools (CRM, ticket escalation) | Not started |
 | 7 — observability, hardening, rollout | Not started |
 
@@ -494,7 +499,80 @@ still be 10/10.
 
 ---
 
-## 15. Remaining phases after 5
+## 15. Phase 5b — DONE (agent runtime, KB answering only)
+
+Codex committed a runtime in `2fdf446` that **could never process a single turn** and had three
+more correctness holes behind that one. It was audited line by line against the approved plan,
+fixed, and tested. Do not assume the Codex commits were ever functional.
+
+### What was wrong (all fixed in HEAD)
+
+1. **Every enqueue threw.** `jobId: \`ai:${conversationId}\`` — BullMQ 6.3.4 **rejects custom
+   ids containing `:`** (`Custom Id cannot contain :`), and `AiTurnEnqueueService` swallows all
+   errors, so no job was ever created. Verified empirically against the real Redis. Fixed:
+   `ai-${conversationId}` (dash, not colon).
+2. **The AI would have muted after one reply.** `removeOnComplete: 1000 / removeOnFail: 5000`
+   (count-based retention) keeps the job hash in Redis, and BullMQ no-ops `add()` for an id that
+   exists in **any** state — so the second message per conversation would silently do nothing
+   until 1000 other jobs pushed the old one out. Verified empirically. Fixed:
+   `removeOnComplete: true, removeOnFail: true` — Postgres (`AiTurn`) stays authoritative, per
+   the plan's own doctrine.
+3. **Messages arriving mid-generation were dropped.** The burst-debounce `jobId` no-ops while a
+   job is active, so a customer message landing during generation lost its turn even after the
+   running turn got fenced out. Fixed: on suppression with `mode` still `AUTO` (a newer inbound,
+   not a human), the processor calls `enqueueFollowUp` — a unique id
+   `ai-${conversationId}-after-${turnId}` that cannot collide, same eligibility gate. A human
+   pause (PAUSED) never re-triggers the AI.
+4. **Grounding check had a hole.** An ungrounded factual answer passed as long as the model never
+   called `kb_search` — the exact confident-invention case. Now: fallback when the customer's
+   newest message asked something and the reply is neither citation-backed nor a clarifying
+   question, or when a search happened and scored below the floor. Chit-chat (customer asked
+   nothing, no search) is still passed through, so a "شكرًا" does not trigger the fallback.
+5. **Error budget counted retries, not turns.** One turn with BullMQ's 3 attempts incremented
+   `consecutiveFailures` three times → instant permanent pause on the first flaky LLM call. Now
+   only the final attempt counts; intermediate attempts keep `RUNNING` and record the error
+   message for diagnosability.
+6. **`escalateOnFallback` was ignored.** A fallback that promises a human must actually hand off:
+   after a sent fallback with escalation on, the conversation pauses (`HANDOFF`, `resumeAt null`)
+   and an `ai.handoff` event lands in the timeline (label added to `conversation-timeline.tsx`).
+7. **Codex left `meta-webhook.spec.ts` broken** — 6 failures, `this.events.emit is not a
+   function` (the spec's emitter mock was never given `emit`). Fixed, and the fencing-token test
+   now also asserts the AI event fires post-commit with the persisted conversation id, plus a new
+   test that a duplicate delivery emits nothing (no second turn for a retried webhook).
+
+### Files (runtime, all under `backend/src/modules/ai/`)
+
+`runtime/ai-turn.processor.ts` (S1–S5 driver), `runtime/ai-eligibility.service.ts` (S1 + lazy
+resume), `runtime/ai-context.service.ts` (S2 window + fencing + `customerAsked`),
+`runtime/ai-orchestrator.service.ts` (S3 tool loop + grounding), `runtime/ai-turn-enqueue.service.ts`
+(mint + debounce + follow-up), `runtime/ai-turn.listener.ts` (event → enqueue),
+`tools/kb-search.tool.ts`, `tools/crm-read-contact.tool.ts`, `tools/tool.contract.ts`,
+`prompts/system-prompt.builder.ts`, `guards/prompt-injection.guard.ts`. The webhook emits
+`INBOX_MESSAGE_RECEIVED_EVENT` post-commit; the listener keeps the inbox ignorant of the AI.
+
+### Tests (all green at HEAD)
+
+- Backend unit: **223 passed** (31 new: orchestrator grounding/budgets/audit, eligibility skip
+  reasons + lazy resume, enqueue id safety, prompt builder, injection guard).
+- Integration AI: **27/27** — ai-takeover 10, ai-control 3, knowledge 4, and new
+  `test/integration/ai/ai-runtime.spec.ts` (10 tests over real Postgres + real pgvector retrieval,
+  stubbed OpenAI/delivery/queue) covering plan scenarios **1, 2, 15, 18, 19, 20, 21** plus the
+  follow-up and handoff behaviors.
+- `nest build` clean; eslint clean on the whole AI surface (Codex's files had never been linted —
+  ~80 prettier violations fixed).
+
+### Deliberately deferred to Phase 6 (do not "fix" earlier)
+
+- **Working-hours eligibility** — `AiAgent.workingHours` is null in the seed and the 5a settings
+  UI does not expose it; the check would be dead config. Ship it with the Phase 6 settings tabs.
+- **`allowedTools` enforcement** — the seed has `[]` and no UI writes it; enforcing now would
+  brick the default agent (no tool could ever run). Ship with the Phase 6 actions tab.
+- **Rolling conversation summary** — replaced by a fixed 20-message window with a 2000-char
+  per-message cap; scenario 20 asserts the bound. Summarizer is a Phase 6+ upgrade.
+
+---
+
+## 16. Remaining phases after 5
 
 - **Phase 6** — write tools: `crm_update_contact` (allow-listed fields; **`phone` is NEVER
   writable** — it is the contact identity key `@@unique([organizationId, normalizedPhone])`),
@@ -514,34 +592,30 @@ still be 10/10.
 Do these in order.
 
 1. **Orient.** Read `/home/ubuntu/.claude/plans/you-are-working-inside-toasty-journal.md` (the
-   approved architecture) and §4 + §6 + §13 of this document (the traps). Confirm you are on
-   `feat/ai-agent-foundation` and that `git status` shows only the pre-existing
-   `D frontend/apps/web/.env.example`.
+   approved architecture) and §4 + §6 + §15 of this document (the traps and what 5b did).
 
 2. **Establish a green baseline before changing anything.** From `backend/`:
    ```bash
-   npm test                                                        # expect 187 passed
+   npm test                                                        # expect 223 passed
    npm run build                                                   # expect clean
    npm run test:integration -- --testPathPatterns "ai-takeover"    # expect 10/10
-   npm run test:integration -- --testPathPatterns "ai-control|knowledge"   # expect 7
+   npm run test:integration -- --testPathPatterns "ai-control|knowledge|ai-runtime"   # expect 17
    ```
    If `.env.test` is missing, recreate it (see §9). If ai-takeover is not 10/10, **stop and
    investigate** — something regressed the safety net.
 
-3. **Ask the owner to run the two live commands in §11** (`prisma migrate deploy`, `prisma db seed`)
-   if they have not. Phase 5a's UI will show an empty agent list until the seed runs.
+3. **Confirm the owner ran the two live commands in §11** (`npx prisma migrate deploy`,
+   `npx tsx prisma/seed.ts`). Without the seed, live has `AiAgent: 0` and the settings page has
+   nothing to edit.
 
-4. **Build Phase 5a — the `AiAgent` CRUD API.** It does not exist and the settings UI depends on it.
-   Start with `backend/src/modules/ai/agent/`. Follow `TicketService.command` for
-   `expectedVersion` handling and update `docs/api-data-requirements.html` first
-   (Constitution Principle III).
-
-5. **Build Phase 5a — the KB frontend** (`src/features/ai-knowledge/`), per §14. This is what the
-   owner explicitly asked for so they can upload documents and test. Reuse `EntityManager`,
-   `FileDropzone`, `DataTable`, `StatusBadge`. Remember: ingestion only runs when
-   `AI_QUEUE_ENABLED=true` with a reachable `REDIS_URL` and an `OPENAI_API_KEY`.
-
-6. **Then Phase 5b — the agent runtime**, per §14.
+4. **Build Phase 6 — write tools**, per §16: `crm_update_contact`, `crm_add_note`,
+   `record_collected_fields`, `create_ticket` (deterministic routing via
+   `AiTicketRoutingRule`), `handoff_to_human`, write budgets, and the full AI settings tabs
+   (which is also where working-hours eligibility and `allowedTools` enforcement — both
+   deliberately deferred from 5b, see §15 — must land). Remember the plan's invariants:
+   `phone` is never writable, `employeeId` is never set by the AI, and every write goes through
+   an existing domain service with the real AI service account.
 
 **Before every commit:** re-run the four commands in step 2 yourself. Never trust a delegated
-agent's self-reported gates (§12). Never weaken `ai-takeover.spec.ts`.
+agent's self-reported gates (§12) — Phase 5b is the proof: the runtime it reported done could
+not process a single turn. Never weaken `ai-takeover.spec.ts`.

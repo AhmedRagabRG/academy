@@ -40,7 +40,10 @@ export class KbSearchTool implements AgentTool {
       const query = typeof parsed.query === 'string' ? parsed.query.trim() : '';
       if (!query) return { ok: false as const, error: 'query is required' };
       if (query.length > 500)
-        return { ok: false as const, error: 'query must be under 500 characters' };
+        return {
+          ok: false as const,
+          error: 'query must be under 500 characters',
+        };
       return { ok: true as const, input: { query } };
     } catch {
       return { ok: false as const, error: 'arguments must be valid JSON' };

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
-import { fenceUntrusted, looksLikeInjection } from '../guards/prompt-injection.guard';
+import {
+  fenceUntrusted,
+  looksLikeInjection,
+} from '../guards/prompt-injection.guard';
 import type { ChatMessage } from '../llm/openai.client';
 
 /** Recent turns only. Long conversations get a summary in a later phase. */
@@ -21,6 +24,7 @@ export class AiContextService {
   async build(conversationId: string): Promise<{
     messages: ChatMessage[];
     injectionSuspected: boolean;
+    customerAsked: boolean;
   }> {
     const rows = await this.db.inboxMessage.findMany({
       where: {
@@ -33,6 +37,7 @@ export class AiContextService {
     });
 
     let injectionSuspected = false;
+    let customerAsked = false;
     const messages: ChatMessage[] = rows
       .reverse()
       .filter((row) => row.body.trim().length > 0)
@@ -40,6 +45,9 @@ export class AiContextService {
         const body = row.body.slice(0, MAX_CHARS_PER_MESSAGE);
         if (row.direction === 'INCOMING') {
           if (looksLikeInjection(body)) injectionSuspected = true;
+          // The turn answers the newest customer message; whether it asked
+          // decides how strictly the grounding check judges the reply.
+          customerAsked = /[?؟]/.test(body);
           return {
             role: 'user' as const,
             content: fenceUntrusted('customer_message', body),
@@ -48,7 +56,7 @@ export class AiContextService {
         return { role: 'assistant' as const, content: body };
       });
 
-    return { messages, injectionSuspected };
+    return { messages, injectionSuspected, customerAsked };
   }
 
   /** What the prompt may state as already known, without leaking the values. */

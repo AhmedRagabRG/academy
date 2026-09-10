@@ -142,6 +142,7 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
             {
               id: uuid('5000', i * 2 + 1),
               direction: 'INCOMING',
+              authorType: 'CUSTOMER',
               senderName: names[i],
               body: 'مرحبًا، أريد الاستفسار عن البرنامج المناسب.',
               sentAt: new Date(lastActivityAt.getTime() - 3_600_000),
@@ -150,6 +151,7 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
             {
               id: uuid('5000', i * 2 + 2),
               direction: 'OUTGOING',
+              authorType: 'HUMAN_AGENT',
               senderName: accounts[0].displayName,
               body: 'أهلًا بك، يسعدني مساعدتك. ما المرحلة الدراسية؟',
               sentAt: lastActivityAt,

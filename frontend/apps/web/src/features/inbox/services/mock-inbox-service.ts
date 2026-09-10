@@ -283,6 +283,7 @@ class MockInboxService implements InboxService {
         id: crypto.randomUUID() as never,
         conversationId: row.id,
         direction: "outgoing",
+        authorType: "human-agent",
         senderName: "أحمد محمد",
         body: command.body.trim(),
         sentAt,

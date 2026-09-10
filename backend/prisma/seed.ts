@@ -7,6 +7,7 @@ import { seedOrganizationMasterData } from './seeds/organization-master-data';
 import { seedTickets } from './seeds/tickets';
 import { seedInbox } from './seeds/inbox';
 import { seedCrm } from './seeds/crm';
+import { seedAiAgent } from './seeds/ai-agent';
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
   await seedInbox(prisma);
   // CRM last: mirrors the seeded inbox customers into contacts and leads.
   await seedCrm(prisma);
+  await seedAiAgent(prisma);
 }
 
 void main().finally(() => prisma.$disconnect());

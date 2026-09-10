@@ -6259,6 +6259,14 @@ interfaces under <code>apps/web/src/features/*/services/*-service.ts</code>.
   });
 })();
 </script>
+<section id="inbox-message-author-contract-amendment">
+  <h2>Inbox — message author contract amendment</h2>
+  <p>Every message returned inside an inbox conversation includes the required
+  <code>authorType</code> field. Its closed wire values are <code>customer</code>,
+  <code>human-agent</code>, and <code>ai-agent</code>. Direction continues to control
+  message layout; author type identifies who wrote the message independently of
+  whether it is incoming or outgoing.</p>
+</section>
 <section id="identity-contract-amendment">
   <h2>Identity &amp; Access Management — approved contract amendment</h2>
   <p>The employee context uses <code>roleIds[]</code>, resolved <code>roles[]</code>, and the

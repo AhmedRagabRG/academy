@@ -54,10 +54,18 @@ export interface Message {
   id: MessageId
   conversationId: ConversationId
   direction: "incoming" | "outgoing"
+  authorType: "customer" | "human-agent" | "ai-agent"
   senderName: string
   body: string
   sentAt: string
-  delivery: "received" | "queued" | "sent" | "delivered" | "read" | "failed"
+  delivery:
+    | "received"
+    | "queued"
+    | "sent"
+    | "delivered"
+    | "read"
+    | "failed"
+    | "suppressed"
   attachments: Attachment[]
 }
 

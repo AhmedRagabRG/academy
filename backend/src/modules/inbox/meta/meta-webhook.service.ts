@@ -410,6 +410,7 @@ export class MetaWebhookService {
     const now = input.sentAt;
     const message = {
       direction: 'INCOMING' as const,
+      authorType: 'CUSTOMER' as const,
       senderName: input.senderName,
       body: input.body,
       sentAt: now,

@@ -49,6 +49,7 @@ const apiConversation = {
       id: "message-id",
       conversationId,
       direction: "outgoing",
+      authorType: "human-agent",
       senderName: "موظف",
       body: "مرحبا",
       sentAt: "2026-08-10T08:00:00.000Z",

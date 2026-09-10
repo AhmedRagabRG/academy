@@ -149,6 +149,7 @@ export function toConversation(row: ApiConversation): ConversationDetail {
       ...message,
       id: message.id as MessageId,
       conversationId: message.conversationId as ConversationId,
+      authorType: message.authorType,
       attachments: message.attachments.map(toAttachment),
     })),
     notes: row.notes.map(toInternalNote),

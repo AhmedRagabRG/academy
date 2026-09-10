@@ -125,6 +125,7 @@ export class InboxService {
         id: m.id,
         conversationId: m.conversationId,
         direction: m.direction.toLowerCase(),
+        authorType: m.authorType.toLowerCase().replace('_', '-'),
         senderName: m.senderName,
         body: m.body,
         sentAt: m.sentAt.toISOString(),

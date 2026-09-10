@@ -75,6 +75,12 @@ const keys = [
   'campaigns.delete',
   'campaigns.launch',
   'campaigns.templates.sync',
+  'ai.settings.view',
+  'ai.settings.manage',
+  'ai.knowledge.view',
+  'ai.knowledge.manage',
+  'ai.runs.view',
+  'inbox.ai.control',
 ] as const;
 
 const definitions = keys.map((key) => [key, `صلاحية ${key}`] as const);

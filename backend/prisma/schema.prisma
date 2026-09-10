@@ -68,6 +68,14 @@ model Organization {
   leads                  Lead[]
   whatsappTemplates      WhatsappTemplate[]
   campaigns              Campaign[]
+  knowledgeBases         KnowledgeBase[]
+  knowledgeSources       KnowledgeSource[]
+  aiAgents               AiAgent[]
+  aiAgentKnowledgeBases  AiAgentKnowledgeBase[]
+  aiTicketRoutingRules   AiTicketRoutingRule[]
+  conversationAiStates   ConversationAiState[]
+  aiTurns                AiTurn[]
+  aiToolExecutions       AiToolExecution[]
 }
 
 model OrganizationContact {
@@ -405,6 +413,62 @@ enum InboxMessageDelivery {
   DELIVERED
   READ
   FAILED
+  SUPPRESSED
+  UNCERTAIN
+}
+
+enum InboxMessageAuthor {
+  CUSTOMER
+  HUMAN_AGENT
+  AI_AGENT
+}
+
+enum AiMode {
+  AUTO
+  PAUSED
+  OFF
+}
+
+enum AiPauseReason {
+  HUMAN_REPLY
+  MANUAL
+  ESCALATED
+  HANDOFF
+  ERROR_BUDGET
+}
+
+enum AiTurnStatus {
+  QUEUED
+  RUNNING
+  REPLIED
+  SUPPRESSED
+  SKIPPED
+  FAILED
+}
+
+enum AiToolOutcome {
+  SUCCESS
+  VALIDATION_ERROR
+  DENIED
+  ERROR
+}
+
+enum KnowledgeSourceKind {
+  FILE
+  TEXT
+  URL
+}
+
+enum KnowledgeSourceStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum KnowledgeVisibility {
+  CUSTOMER_FACING
+  INTERNAL
 }
 
 model InboxPlatform {
@@ -481,6 +545,7 @@ model InboxConversation {
   createdAt          DateTime                 @default(now()) @db.Timestamptz
   updatedAt          DateTime                 @updatedAt @db.Timestamptz
   messages           InboxMessage[]
+  aiState            ConversationAiState?
   notes              InboxInternalNote[]
   tags               InboxConversationTag[]
   assignmentHistory  InboxAssignmentHistory[]
@@ -512,6 +577,8 @@ model InboxMessage {
   conversationId    String                   @db.Uuid
   conversation      InboxConversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   direction         InboxMessageDirection
+  authorType        InboxMessageAuthor       @default(HUMAN_AGENT)
+  aiTurnId          String?                  @db.Uuid
   senderName        String
   body              String
   sentAt            DateTime                 @db.Timestamptz
@@ -523,6 +590,194 @@ model InboxMessage {
 
   @@unique([conversationId, retryToken])
   @@index([conversationId, sentAt, id])
+  @@index([conversationId, authorType])
+}
+
+model KnowledgeBase {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  status         EntityStatus           @default(ACTIVE)
+  version        Int                    @default(1)
+  createdAt      DateTime               @default(now()) @db.Timestamptz
+  updatedAt      DateTime               @updatedAt @db.Timestamptz
+  createdBy      String?                @db.Uuid
+  updatedBy      String?                @db.Uuid
+  sources        KnowledgeSource[]
+  agents         AiAgentKnowledgeBase[]
+
+  @@unique([organizationId, name])
+}
+
+model KnowledgeSource {
+  id              String                @id @default(uuid()) @db.Uuid
+  organizationId  String                @db.Uuid
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  knowledgeBaseId String                @db.Uuid
+  knowledgeBase   KnowledgeBase         @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  kind            KnowledgeSourceKind
+  title           String
+  visibility      KnowledgeVisibility   @default(CUSTOMER_FACING)
+  rawText         String?
+  storageId       String?
+  storageName     String?
+  mimeType        String?
+  sizeBytes       Int?
+  status          KnowledgeSourceStatus @default(PENDING)
+  failureReason   String?
+  activeRevision  Int                   @default(0)
+  chunkCount      Int                   @default(0)
+  tokenCount      Int                   @default(0)
+  checksum        String?
+  deletedAt       DateTime?             @db.Timestamptz
+  version         Int                   @default(1)
+  createdAt       DateTime              @default(now()) @db.Timestamptz
+  updatedAt       DateTime              @updatedAt @db.Timestamptz
+  createdBy       String?               @db.Uuid
+  updatedBy       String?               @db.Uuid
+
+  @@index([knowledgeBaseId, status])
+  @@index([organizationId, deletedAt])
+}
+
+model AiAgent {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  organizationId        String                 @db.Uuid
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                  String
+  enabled               Boolean                @default(false)
+  systemInstructions    String
+  tone                  String
+  responseLanguage      String                 @default("ar")
+  model                 String
+  temperature           Float
+  maxResponseChars      Int
+  enabledPlatformCodes  String[]               @default([])
+  workingHours          Json?
+  outsideHoursBehaviour String
+  resumeAfterMinutes    Int?
+  fallbackMessage       String
+  handoffMessage        String
+  allowedTools          String[]               @default([])
+  allowedCrmFields      String[]               @default([])
+  dataCollectionFields  Json                   @default("[]")
+  retrievalMinScore     Float                  @default(0.35)
+  retrievalTopK         Int                    @default(6)
+  routingMinConfidence  Float                  @default(0.6)
+  maxToolCallsPerTurn   Int                    @default(4)
+  escalateOnFallback    Boolean                @default(true)
+  serviceAccountId      String                 @db.Uuid
+  version               Int                    @default(1)
+  createdAt             DateTime               @default(now()) @db.Timestamptz
+  updatedAt             DateTime               @updatedAt @db.Timestamptz
+  createdBy             String?                @db.Uuid
+  updatedBy             String?                @db.Uuid
+  knowledgeBases        AiAgentKnowledgeBase[]
+  ticketRoutingRules    AiTicketRoutingRule[]
+
+  @@unique([organizationId, name])
+}
+
+model AiAgentKnowledgeBase {
+  organizationId  String        @db.Uuid
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId         String        @db.Uuid
+  knowledgeBaseId String        @db.Uuid
+  agent           AiAgent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, knowledgeBaseId])
+}
+
+model AiTicketRoutingRule {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String         @db.Uuid
+  agent          AiAgent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  category       String
+  categoryLabel  String
+  teamId         String?        @db.Uuid
+  priority       TicketPriority @default(MEDIUM)
+  active         Boolean        @default(true)
+  displayOrder   Int            @default(0)
+
+  @@unique([agentId, category])
+}
+
+model ConversationAiState {
+  conversationId             String            @id @db.Uuid
+  conversation               InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  organizationId             String            @db.Uuid
+  organization               Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId                    String            @db.Uuid
+  mode                       AiMode            @default(AUTO)
+  pausedReason               AiPauseReason?
+  pausedAt                   DateTime?         @db.Timestamptz
+  pausedByAccountId          String?           @db.Uuid
+  resumeAt                   DateTime?         @db.Timestamptz
+  /// Fencing token incremented by every inbound message, human reply, and manual pause/resume. Internal only: never expose it to API clients or use it as a client expectedVersion.
+  turnSeq                    Int               @default(0)
+  lastInboundMessageId       String?           @db.Uuid
+  collectedFields            Json              @default("{}")
+  askedFields                Json              @default("[]")
+  summary                    String?
+  summarizedThroughMessageId String?           @db.Uuid
+  consecutiveFailures        Int               @default(0)
+  version                    Int               @default(1)
+  createdAt                  DateTime          @default(now()) @db.Timestamptz
+  updatedAt                  DateTime          @updatedAt @db.Timestamptz
+
+  @@index([organizationId, mode])
+}
+
+model AiTurn {
+  id                  String            @id @default(uuid()) @db.Uuid
+  organizationId      String            @db.Uuid
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId      String            @db.Uuid
+  agentId             String            @db.Uuid
+  triggerMessageId    String?           @db.Uuid
+  turnSeqAtStart      Int
+  status              AiTurnStatus      @default(QUEUED)
+  skipReason          String?
+  dispatchStartedAt   DateTime?         @db.Timestamptz
+  messageId           String?           @db.Uuid
+  model               String?
+  promptTokens        Int?
+  completionTokens    Int?
+  estimatedCostMicros BigInt?
+  retrievedChunkIds   String[]          @default([])
+  latencyMs           Int?
+  errorCode           String?
+  errorMessage        String?
+  attempt             Int               @default(1)
+  createdAt           DateTime          @default(now()) @db.Timestamptz
+  finishedAt          DateTime?         @db.Timestamptz
+  toolExecutions      AiToolExecution[]
+
+  @@index([conversationId, createdAt])
+  @@index([organizationId, status, createdAt])
+}
+
+model AiToolExecution {
+  id             String        @id @default(uuid()) @db.Uuid
+  aiTurnId       String        @db.Uuid
+  aiTurn         AiTurn        @relation(fields: [aiTurnId], references: [id], onDelete: Cascade)
+  organizationId String        @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  toolName       String
+  input          Json
+  output         Json?
+  outcome        AiToolOutcome
+  errorMessage   String?
+  latencyMs      Int?
+  createdAt      DateTime      @default(now()) @db.Timestamptz
+
+  @@index([aiTurnId])
+  @@index([organizationId, toolName, createdAt])
 }
 
 /// `storageKey`/`sizeBytes`/`ownerAccountId` are set for attachments the

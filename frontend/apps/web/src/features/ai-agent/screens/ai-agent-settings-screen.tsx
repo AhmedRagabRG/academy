@@ -12,9 +12,22 @@ import { useKnowledgeBases } from "@/features/ai-knowledge/hooks/use-ai-knowledg
 import { useInboxLookups } from "@/features/inbox/hooks/use-inbox-list"
 import {
   aiAgentPermissions,
+  crmFieldCatalog,
   resumeDelayOptions,
+  toolCatalog,
 } from "../config/ai-agent-permissions"
-import { useAiAgents, useUpdateAiAgent } from "../hooks/use-ai-agent"
+import { DataCollectionEditor } from "../components/data-collection-editor"
+import { RoutingRulesTable } from "../components/routing-rules-table"
+import {
+  WorkingHoursEditor,
+  isValidRange,
+} from "../components/working-hours-editor"
+import {
+  useAiAgents,
+  useDeleteRoutingRule,
+  useSaveRoutingRule,
+  useUpdateAiAgent,
+} from "../hooks/use-ai-agent"
 import type { AiAgent } from "../types/domain"
 
 const field =
@@ -26,6 +39,8 @@ export function AiAgentSettingsScreen() {
   const bases = useKnowledgeBases()
   const lookups = useInboxLookups()
   const save = useUpdateAiAgent()
+  const saveRule = useSaveRoutingRule()
+  const deleteRule = useDeleteRoutingRule()
   const agent = agents.data?.[0]
   const [draft, setDraft] = useState<AiAgent | null>(null)
 
@@ -62,6 +77,12 @@ export function AiAgentSettingsScreen() {
     )
 
   const platforms = lookups.data?.platforms ?? []
+  const teams = lookups.data?.teams ?? []
+  // A malformed range would be rejected by the API anyway; catching it here
+  // means the admin sees which day is wrong instead of a generic 422.
+  const hoursInvalid = Object.values(draft.workingHours ?? {}).some(
+    (range) => !isValidRange(range),
+  )
   const patch = (changes: Partial<AiAgent>) =>
     setDraft((current) => (current ? { ...current, ...changes } : current))
   const toggleIn = (list: string[], value: string) =>
@@ -76,7 +97,7 @@ export function AiAgentSettingsScreen() {
       actions={
         canManage ? (
           <Button
-            disabled={save.isPending}
+            disabled={save.isPending || hoursInvalid}
             onClick={() =>
               save.mutate({
                 id: draft.id,
@@ -91,6 +112,11 @@ export function AiAgentSettingsScreen() {
                 fallbackMessage: draft.fallbackMessage,
                 handoffMessage: draft.handoffMessage,
                 knowledgeBaseIds: draft.knowledgeBaseIds,
+                workingHours: draft.workingHours,
+                outsideHoursBehaviour: draft.outsideHoursBehaviour,
+                allowedTools: draft.allowedTools,
+                allowedCrmFields: draft.allowedCrmFields,
+                dataCollectionFields: draft.dataCollectionFields,
               })
             }
           >
@@ -266,6 +292,129 @@ export function AiAgentSettingsScreen() {
             onChange={(event) => patch({ handoffMessage: event.target.value })}
           />
         </label>
+      </Card>
+      <Card className="space-y-3 p-4">
+        <h2 className="font-medium">ساعات العمل</h2>
+        <p className="text-muted-foreground text-sm">
+          خارج هذه الساعات لا يرد المساعد. تُحتسب بتوقيت المؤسسة المضبوط في
+          الإعدادات العامة.
+        </p>
+        <WorkingHoursEditor
+          value={draft.workingHours}
+          disabled={!canManage}
+          onChange={(workingHours) => patch({ workingHours })}
+        />
+        <label className="text-sm">
+          <span className="mb-1 block">خارج ساعات العمل</span>
+          <select
+            className={field}
+            disabled={!canManage}
+            value={draft.outsideHoursBehaviour}
+            onChange={(event) =>
+              patch({
+                outsideHoursBehaviour: event.target
+                  .value as AiAgent["outsideHoursBehaviour"],
+              })
+            }
+          >
+            <option value="silent">لا يرد إطلاقًا</option>
+            <option value="fallback_message">يرسل رسالة التعذر</option>
+          </select>
+        </label>
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <h2 className="font-medium">الأدوات المسموح بها</h2>
+        <p className="text-muted-foreground text-sm">
+          لا يستطيع المساعد استخدام أداة غير مفعّلة هنا، مهما طُلب منه في
+          المحادثة.
+        </p>
+        <ul className="space-y-2">
+          {toolCatalog.map((tool) => (
+            <li key={tool.name}>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  disabled={!canManage}
+                  checked={draft.allowedTools.includes(tool.name)}
+                  onChange={() =>
+                    patch({
+                      allowedTools: toggleIn(draft.allowedTools, tool.name),
+                    })
+                  }
+                />
+                <span>
+                  {tool.label}
+                  <span className="text-muted-foreground block text-xs">
+                    {tool.note}
+                  </span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <h2 className="font-medium">حقول العميل القابلة للتحديث</h2>
+        <p className="text-muted-foreground text-sm">
+          يملأ المساعد الحقول الفارغة فقط ولا يستبدل قيمة موجودة. رقم الهاتف غير
+          قابل للتعديل إطلاقًا لأنه مُعرّف العميل.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {crmFieldCatalog.map((crmField) => (
+            <label
+              key={crmField.name}
+              className="flex items-center gap-2 text-sm"
+            >
+              <input
+                type="checkbox"
+                disabled={!canManage}
+                checked={draft.allowedCrmFields.includes(crmField.name)}
+                onChange={() =>
+                  patch({
+                    allowedCrmFields: toggleIn(
+                      draft.allowedCrmFields,
+                      crmField.name,
+                    ),
+                  })
+                }
+              />
+              {crmField.label}
+            </label>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <h2 className="font-medium">البيانات التي يجمعها من العميل</h2>
+        <p className="text-muted-foreground text-sm">
+          يسأل عنها ضمن سياق المحادثة وليس كنموذج، ولا يعيد السؤال عمّا حصل عليه.
+        </p>
+        <DataCollectionEditor
+          fields={draft.dataCollectionFields}
+          disabled={!canManage}
+          onChange={(dataCollectionFields) => patch({ dataCollectionFields })}
+        />
+      </Card>
+
+      <Card className="space-y-3 p-4">
+        <h2 className="font-medium">توجيه التذاكر</h2>
+        <p className="text-muted-foreground text-sm">
+          يختار المساعد التصنيف فقط؛ الفريق والأولوية من هذا الجدول. عند عدم
+          التطابق أو ضعف الثقة تُنشأ التذكرة دون إسناد بدلًا من إسنادها للفريق
+          الخطأ.
+        </p>
+        <RoutingRulesTable
+          agentId={draft.id}
+          rules={agent.routingRules}
+          teams={teams}
+          canManage={canManage}
+          pending={saveRule.isPending || deleteRule.isPending}
+          onSave={(input) => saveRule.mutate(input)}
+          onDelete={(input) => deleteRule.mutate(input)}
+        />
       </Card>
     </SettingsPage>
   )

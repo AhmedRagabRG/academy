@@ -108,4 +108,41 @@ describe('AiAgentService', () => {
     const [, , data] = (repo.update as jest.Mock).mock.calls[0] as unknown[];
     expect(data).toEqual({ enabled: true, updatedBy: 'account-1' });
   });
+
+  /**
+   * The DTO guards these at the HTTP boundary, but the service is also reachable
+   * from seeds and scripts. Nothing invalid can reach a write — the tools
+   * intersect against a hard-coded ceiling — so the risk is stored config that
+   * silently does nothing while an admin believes a capability is enabled.
+   */
+  it('rejects a tool name that is not in the agent tool catalogue', async () => {
+    const service = new AiAgentService(repository());
+    await expect(
+      service.update(caller, 'agent-1', {
+        expectedVersion: 1,
+        allowedTools: ['kb_search', 'rm_rf_database'],
+      }),
+    ).rejects.toBeInstanceOf(DomainException);
+  });
+
+  it('rejects phone as a writable CRM field — it is the contact identity key', async () => {
+    const service = new AiAgentService(repository());
+    await expect(
+      service.update(caller, 'agent-1', {
+        expectedVersion: 1,
+        allowedCrmFields: ['email', 'phone'],
+      }),
+    ).rejects.toBeInstanceOf(DomainException);
+  });
+
+  it('accepts the documented tools and writable fields', async () => {
+    const service = new AiAgentService(repository());
+    await expect(
+      service.update(caller, 'agent-1', {
+        expectedVersion: 1,
+        allowedTools: ['kb_search', 'create_ticket', 'handoff_to_human'],
+        allowedCrmFields: ['name', 'email', 'secondaryPhone'],
+      }),
+    ).resolves.toMatchObject({ version: 2 });
+  });
 });

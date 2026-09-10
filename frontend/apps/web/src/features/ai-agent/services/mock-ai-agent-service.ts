@@ -16,6 +16,12 @@ let agent: AiAgent = {
     "عذرًا، لا أملك معلومات كافية للإجابة بدقة. سأحوّل المحادثة إلى أحد موظفينا.",
   handoffMessage: "سيكمل أحد موظفينا مساعدتك في أقرب وقت.",
   knowledgeBaseIds: [],
+  workingHours: null,
+  outsideHoursBehaviour: "silent",
+  allowedTools: ["kb_search", "crm_read_contact"],
+  allowedCrmFields: [],
+  dataCollectionFields: [],
+  routingRules: [],
   version: 1,
   updatedAt: new Date().toISOString(),
 }

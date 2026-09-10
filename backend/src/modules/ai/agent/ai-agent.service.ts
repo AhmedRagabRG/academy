@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import {
+  AGENT_TOOL_NAMES,
+  WRITABLE_CONTACT_FIELDS,
+} from '../tools/tool.contract';
 import { Prisma } from '../../../../prisma/generated/client';
 import {
   DomainException,
@@ -73,6 +77,36 @@ export class AiAgentService {
         throw new DomainException(
           'platform-unknown',
           `قناة غير معروفة: ${unknown.join('، ')}`,
+          422,
+        );
+    }
+    // The DTO already rejects these at the HTTP boundary. Repeating the check
+    // here keeps the guarantee for any non-HTTP caller (a seed, a script, a
+    // future internal service) and makes it consistent with the platform and
+    // knowledge-base checks below. Nothing invalid can reach a write either
+    // way — the tools intersect against a hard-coded ceiling — but storing a
+    // value that silently does nothing would let an admin believe a capability
+    // is on when it is not.
+    if (dto.allowedTools) {
+      const unknown = dto.allowedTools.filter(
+        (tool) => !(AGENT_TOOL_NAMES as readonly string[]).includes(tool),
+      );
+      if (unknown.length)
+        throw new DomainException(
+          'tool-unknown',
+          `أداة غير معروفة: ${unknown.join('، ')}`,
+          422,
+        );
+    }
+    if (dto.allowedCrmFields) {
+      const unknown = dto.allowedCrmFields.filter(
+        (field) =>
+          !(WRITABLE_CONTACT_FIELDS as readonly string[]).includes(field),
+      );
+      if (unknown.length)
+        throw new DomainException(
+          'crm-field-unknown',
+          `حقل غير قابل للتعديل: ${unknown.join('، ')}`,
           422,
         );
     }

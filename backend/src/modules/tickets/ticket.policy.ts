@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ForbiddenException, NotFoundException } from '../../core/exceptions';
 import type { CallerContext } from '../../shared/types/caller-context';
 import type { Prisma } from '../../../prisma/generated/client';
+import { branchWhere } from '../../core/authorization/branch-scope';
 
 @Injectable()
 export class TicketPolicy {
@@ -20,13 +21,21 @@ export class TicketPolicy {
       throw new ForbiddenException();
   }
   scope(c: CallerContext, teamIds: string[]): Prisma.TicketWhereInput {
-    return this.has(c, 'tickets.view.all')
+    const visibility: Prisma.TicketWhereInput = this.has(c, 'tickets.view.all')
       ? {}
       : this.has(c, 'tickets.view.team')
         ? { teamId: { in: teamIds } }
         : this.has(c, 'tickets.view.assigned')
           ? { employeeId: c.accountId }
           : { id: '__none__' };
+    // Branch narrows whatever the permission already allows; it never widens
+    // it, so `tickets.view.all` still means "all tickets in my branches".
+    // An unrestricted caller gets the visibility clause untouched, so adding
+    // branches changed nothing for anyone who is not confined to one.
+    const branches = branchWhere(c, 'branchId');
+    return Object.keys(branches).length
+      ? { AND: [visibility, branches] }
+      : visibility;
   }
   assertVisible(visible: boolean) {
     if (!visible) throw new NotFoundException();

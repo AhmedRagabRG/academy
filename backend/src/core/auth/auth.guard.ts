@@ -54,6 +54,7 @@ export class AuthGuard implements CanActivate {
         roles,
         permissionKeys,
         organizationWide: account.organizationWide,
+        branchIds: account.branchIds,
         authenticatedAt: new Date((claims.iat ?? 0) * 1000).toISOString(),
       };
       await this.sessions.touchActivity(

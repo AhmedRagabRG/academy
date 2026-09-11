@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../../prisma/generated/client';
 import { ForbiddenException, NotFoundException } from '../../core/exceptions';
 import type { CallerContext } from '../../shared/types/caller-context';
+import { branchWhere } from '../../core/authorization/branch-scope';
 
 @Injectable()
 export class ContactPolicy {
@@ -16,7 +17,7 @@ export class ContactPolicy {
   /** Contact view scope. */
   scope(c: CallerContext): Prisma.ContactWhereInput {
     this.assert(c, 'contacts.view');
-    return {};
+    return branchWhere(c, 'branchId');
   }
 
   assertVisible(value: unknown): asserts value {

@@ -61,6 +61,7 @@ model Organization {
   inboxConversations     InboxConversation[]
   inboxStagedAttachments InboxStagedAttachment[]
   inboxChannels          InboxChannelConnection[]
+  branches               Branch[]
   crmContacts            Contact[]
   contactGroups          ContactGroup[]
   contactFields          ContactCustomField[]
@@ -199,6 +200,9 @@ model Account {
   phone                      String                   @default("+2000000000")
   position                   String?
   organizationWide           Boolean                  @default(false)
+  /// Empty means unrestricted, which is what every account predating branches
+  /// has — adding the column must not silently lock anyone out.
+  branchIds                  String[]                 @default([])
   avatar                     Json?
   status                     EntityStatus             @default(ACTIVE)
   version                    Int                      @default(1)
@@ -304,6 +308,33 @@ model TicketTeamMembership {
   @@index([employeeId, active])
 }
 
+/// A physical location the organization operates from.
+///
+/// Branch is an access-control boundary, not just a label: an account with
+/// `branchIds` set sees only rows in those branches. Rows with a null
+/// `branchId` are visible to everyone, because "not assigned to a branch yet"
+/// must not mean "invisible" — every row predating branches has a null.
+model Branch {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  name           String
+  address        String?
+  phone          String?
+  email          String?
+  status         EntityStatus @default(ACTIVE)
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  createdBy      String?      @db.Uuid
+  updatedBy      String?      @db.Uuid
+  contacts       Contact[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
 model Ticket {
   id               String             @id @default(uuid()) @db.Uuid
   organizationId   String             @db.Uuid
@@ -315,6 +346,7 @@ model Ticket {
   priority         TicketPriority     @default(MEDIUM)
   priorityRank     Int                @default(2)
   teamId           String?            @db.Uuid
+  branchId         String?            @db.Uuid
   employeeId       String?            @db.Uuid
   customerId       String?            @db.Uuid
   studentId        String?            @db.Uuid
@@ -338,6 +370,7 @@ model Ticket {
   @@index([organizationId, archivedAt, status, updatedAt, id])
   @@index([organizationId, employeeId, status])
   @@index([organizationId, teamId, status])
+  @@index([organizationId, branchId, status])
   @@index([organizationId, archivedAt, priorityRank, updatedAt, id])
 }
 
@@ -734,6 +767,7 @@ model AiTicketRoutingRule {
   category       String
   categoryLabel  String
   teamId         String?        @db.Uuid
+  branchId       String?        @db.Uuid
   priority       TicketPriority @default(MEDIUM)
   active         Boolean        @default(true)
   displayOrder   Int            @default(0)
@@ -982,6 +1016,8 @@ model Contact {
   jobTitle        String?
   source          ContactSource        @default(MANUAL)
   channelHandle   String?
+  branchId        String?              @db.Uuid
+  branch          Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
   ownerAccountId  String?              @db.Uuid
   owner           Account?             @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
   ownerName       String
@@ -1003,6 +1039,7 @@ model Contact {
   @@index([organizationId, deletedAt, lastActivityAt, id])
   @@index([organizationId, normalizedName])
   @@index([organizationId, source])
+  @@index([organizationId, branchId])
   @@index([ownerAccountId])
 }
 

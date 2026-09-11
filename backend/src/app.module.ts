@@ -16,6 +16,7 @@ import { StorageModule } from './storage/storage.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { TagsModule } from './modules/tags/tags.module';
+import { BranchesModule } from './modules/branches/branches.module';
 import { InboxModule } from './modules/inbox/inbox.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { LeadPipelineModule } from './modules/lead-pipeline/lead-pipeline.module';
@@ -52,6 +53,7 @@ import { AiModule } from './modules/ai/ai.module';
     TicketsModule,
     TeamsModule,
     TagsModule,
+    BranchesModule,
     InboxModule,
     ContactsModule,
     LeadPipelineModule,

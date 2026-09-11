@@ -12,6 +12,7 @@ const caller = (
   roles: [],
   permissionKeys,
   organizationWide: false,
+  branchIds: [],
   authenticatedAt: new Date(0).toISOString(),
   ...overrides,
 });

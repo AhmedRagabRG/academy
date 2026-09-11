@@ -13,6 +13,7 @@ const caller = (permissionKeys: string[]): CallerContext => ({
   roles: [],
   permissionKeys,
   organizationWide: false,
+  branchIds: [],
   authenticatedAt: new Date(0).toISOString(),
 });
 

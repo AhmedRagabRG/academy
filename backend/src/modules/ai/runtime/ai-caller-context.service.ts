@@ -57,6 +57,10 @@ export class AiCallerContextService {
       displayName: account.displayName,
       email: account.email,
       sessionId: randomUUID(),
+      // The AI acts across the whole organization: it answers whichever
+      // conversation arrives, so confining it to a branch would silently drop
+      // work rather than route it.
+      branchIds: [],
       roles: roles.map(({ id, code, displayName: name }) => ({
         id,
         code,

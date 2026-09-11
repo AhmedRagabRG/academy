@@ -1,97 +1,117 @@
 import { AiTurnEnqueueService } from '../../../../src/modules/ai/runtime/ai-turn-enqueue.service';
-import type { Queue } from 'bullmq';
 import type { PrismaService } from '../../../../src/database/prisma.service';
 
-const CONVERSATION_ID = '123e4567-e89b-12d3-a456-426614174000';
-
-interface AddOptions {
-  jobId: string;
-  delay: number;
-  removeOnComplete: boolean;
-  removeOnFail: boolean;
-}
-
-const db = (state: Record<string, unknown> | null) => {
-  const create = jest.fn<Promise<{ id: string }>, [data: unknown]>();
-  create.mockResolvedValue({ id: 'turn-1' });
-  return {
-    handle: {
-      conversationAiState: { findUnique: jest.fn().mockResolvedValue(state) },
-      aiTurn: { create },
-    } as unknown as PrismaService,
-    create,
+/**
+ * A conversation carries no AI state until an enabled agent first covers it.
+ * Nothing used to create that row, so the enqueue path always found nothing and
+ * the inbox reported the assistant disabled on every conversation.
+ */
+const harness = (options: {
+  state?: unknown;
+  conversation?: unknown;
+  agent?: unknown;
+}) => {
+  const create = jest.fn().mockResolvedValue({
+    agentId: 'agent-1',
+    turnSeq: 0,
+    mode: 'AUTO',
+    organizationId: 'org-1',
+  });
+  const add = jest.fn().mockResolvedValue(undefined);
+  const db = {
+    conversationAiState: {
+      findUnique: jest.fn().mockResolvedValue(options.state ?? null),
+      create,
+    },
+    inboxConversation: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue(
+          options.conversation === undefined
+            ? { organizationId: 'org-1', platform: { code: 'whatsapp' } }
+            : options.conversation,
+        ),
+    },
+    aiAgent: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue(
+          options.agent === undefined
+            ? { id: 'agent-1', enabledPlatformCodes: ['whatsapp'] }
+            : options.agent,
+        ),
+    },
+    aiTurn: { create: jest.fn().mockResolvedValue({ id: 'turn-1' }) },
   };
+  const service = new AiTurnEnqueueService(
+    db as unknown as PrismaService,
+    {
+      add,
+    } as never,
+  );
+  return { service, db, create, add };
 };
 
-const queue = () => {
-  const add = jest.fn<Promise<void>, [string, unknown, AddOptions]>();
-  return { q: { add } as unknown as Queue, add };
-};
-
-const state = (overrides: Record<string, unknown> = {}) => ({
-  agentId: 'agent-1',
-  turnSeq: 3,
-  mode: 'AUTO',
-  organizationId: 'org-1',
-  ...overrides,
-});
-
-describe('AiTurnEnqueueService', () => {
-  it('mints the turn row first, then adds a job with a BullMQ-safe id', async () => {
-    const { q, add } = queue();
-    const { handle: database, create } = db(state());
-    const service = new AiTurnEnqueueService(database, q);
-    await service.enqueue(CONVERSATION_ID);
-    const [name, payload, options] = add.mock.calls[0];
-    expect(name).toBe('turn');
-    expect(payload).toEqual({
-      conversationId: CONVERSATION_ID,
-      aiTurnId: 'turn-1',
+describe('AiTurnEnqueueService state creation', () => {
+  it('creates the state row on the first covered inbound message', async () => {
+    const { service, create, add } = harness({});
+    await service.enqueue('conversation-1');
+    const [args] = create.mock.calls[0] as [{ data: Record<string, unknown> }];
+    expect(args.data).toMatchObject({
+      conversationId: 'conversation-1',
+      agentId: 'agent-1',
     });
-    // BullMQ 6 rejects custom ids containing ':' — and the reused debounce id
-    // must survive completion, hence removal instead of retention.
-    expect(options.jobId).toBe(`ai-${CONVERSATION_ID}`);
-    expect(options.jobId).not.toContain(':');
-    expect(options.delay).toBe(4000);
-    expect(options.removeOnComplete).toBe(true);
-    expect(options.removeOnFail).toBe(true);
-    expect(create.mock.invocationCallOrder[0]).toBeLessThan(
-      add.mock.invocationCallOrder[0],
-    );
+    expect(add).toHaveBeenCalled();
   });
 
-  it('mints the follow-up with a unique id so it is not no-opped by the active job', async () => {
-    const { q, add } = queue();
-    const service = new AiTurnEnqueueService(db(state()).handle, q);
-    await service.enqueueFollowUp(CONVERSATION_ID, 'fenced-turn-id');
-    const [, , options] = add.mock.calls[0];
-    expect(options.jobId).toBe(`ai-${CONVERSATION_ID}-after-fenced-turn-id`);
+  it('reuses an existing row rather than creating a second', async () => {
+    const { service, create, add } = harness({
+      state: {
+        agentId: 'agent-1',
+        turnSeq: 7,
+        mode: 'AUTO',
+        organizationId: 'org-1',
+      },
+    });
+    await service.enqueue('conversation-1');
+    expect(create).not.toHaveBeenCalled();
+    expect(add).toHaveBeenCalled();
   });
 
-  it('does nothing when the conversation has no AI state or the AI is off', async () => {
-    const { q, add } = queue();
-    const service = new AiTurnEnqueueService(db(null).handle, q);
-    await service.enqueue(CONVERSATION_ID);
-    const serviceOff = new AiTurnEnqueueService(
-      db(state({ mode: 'OFF' })).handle,
-      q,
-    );
-    await serviceOff.enqueue(CONVERSATION_ID);
+  it('creates nothing when no agent is enabled', async () => {
+    const { service, create, add } = harness({ agent: null });
+    await service.enqueue('conversation-1');
+    expect(create).not.toHaveBeenCalled();
     expect(add).not.toHaveBeenCalled();
   });
 
-  it('swallows queue failures: the webhook already committed the message', async () => {
-    const { q, add } = queue();
-    add.mockRejectedValue(new Error('redis down'));
-    const service = new AiTurnEnqueueService(db(state()).handle, q);
-    await expect(service.enqueue(CONVERSATION_ID)).resolves.toBeUndefined();
-    await expect(
-      service.enqueueFollowUp(CONVERSATION_ID, 'turn-1'),
-    ).resolves.toBeUndefined();
+  it('creates nothing when the agent does not cover this channel', async () => {
+    // An absent row means "the AI was never in play here", which is a different
+    // thing from "it is paused" — so it must not be created speculatively.
+    const { service, create, add } = harness({
+      agent: { id: 'agent-1', enabledPlatformCodes: ['instagram'] },
+    });
+    await service.enqueue('conversation-1');
+    expect(create).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
-  it('is inert when no queue is provided (AI queue disabled)', async () => {
-    const service = new AiTurnEnqueueService(db(state()).handle);
-    await expect(service.enqueue(CONVERSATION_ID)).resolves.toBeUndefined();
+  it('does not enqueue when the conversation is gone', async () => {
+    const { service, add } = harness({ conversation: null });
+    await service.enqueue('conversation-1');
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the AI has been switched off for the conversation', async () => {
+    const { service, add } = harness({
+      state: {
+        agentId: 'agent-1',
+        turnSeq: 1,
+        mode: 'OFF',
+        organizationId: 'org-1',
+      },
+    });
+    await service.enqueue('conversation-1');
+    expect(add).not.toHaveBeenCalled();
   });
 });

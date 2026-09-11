@@ -13,6 +13,7 @@ import { useInboxLookups } from "@/features/inbox/hooks/use-inbox-list"
 import {
   aiAgentPermissions,
   crmFieldCatalog,
+  deliverableChannelCodes,
   resumeDelayOptions,
   toolCatalog,
 } from "../config/ai-agent-permissions"
@@ -76,7 +77,9 @@ export function AiAgentSettingsScreen() {
       </SettingsPage>
     )
 
-  const platforms = lookups.data?.platforms ?? []
+  const platforms = (lookups.data?.platforms ?? []).filter((platform) =>
+    (deliverableChannelCodes as readonly string[]).includes(platform.code),
+  )
   const teams = lookups.data?.teams ?? []
   // A malformed range would be rejected by the API anyway; catching it here
   // means the admin sees which day is wrong instead of a generic 422.
@@ -144,7 +147,10 @@ export function AiAgentSettingsScreen() {
       <Card className="space-y-3 p-4">
         <h2 className="font-medium">القنوات</h2>
         {platforms.length === 0 ? (
-          <p className="text-muted-foreground text-sm">لا توجد قنوات متاحة.</p>
+          <p className="text-muted-foreground text-sm">
+            لا توجد قنوات مدعومة مفعّلة. المساعد يعمل على واتساب وماسنجر
+            وإنستغرام فقط.
+          </p>
         ) : (
           <div className="flex flex-wrap gap-3">
             {platforms.map((platform) => (

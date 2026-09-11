@@ -43,6 +43,11 @@ export interface InboxService {
     signal?: AbortSignal
   ): Promise<InboxDashboard>
   lookups(signal?: AbortSignal): Promise<InboxLookups>
+  /**
+   * Staging still exists on the backend (`POST /inbox/attachments`) and is
+   * contract-tested, but no UI calls it: the composer is text-only because
+   * every Meta channel rejects attachments outright.
+   */
   stageAttachment(file: File, signal?: AbortSignal): Promise<Attachment>
   sendReply(command: ReplyCommand): Promise<ConversationDetail>
   assign(command: AssignmentCommand): Promise<ConversationDetail>

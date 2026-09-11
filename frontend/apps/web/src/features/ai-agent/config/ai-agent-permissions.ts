@@ -57,3 +57,16 @@ export const priorityLabels = {
   high: "عالية",
   critical: "حرجة",
 } as const
+
+/**
+ * The only channels the agent can actually reply on. Everything else in the
+ * inbox (web, email, phone) routes to LocalInboxDeliveryAdapter, which reports
+ * "queued" and sends nothing — so offering them here would let an admin switch
+ * the AI on for a channel where its replies silently reach no one. Mirrors
+ * CHANNEL_PROVIDERS in the backend, which rejects the others outright.
+ */
+export const deliverableChannelCodes = [
+  "whatsapp",
+  "messenger",
+  "instagram",
+] as const

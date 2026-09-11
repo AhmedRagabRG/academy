@@ -196,6 +196,9 @@ export class AiTurnProcessor extends WorkerHost {
           retrievedChunkIds: result.citedChunkIds,
           latencyMs: Math.round(performance.now() - startedAt),
           skipReason: result.usedFallback ? 'fallback-used' : null,
+          // A dispatch failure is the most common way a turn produces nothing
+          // the customer can see, so its reason belongs on the turn record.
+          ...(sent.error ? { errorMessage: sent.error.slice(0, 500) } : {}),
         },
       );
       await this.recordOutcome(conversationId, sent.status !== 'failed');

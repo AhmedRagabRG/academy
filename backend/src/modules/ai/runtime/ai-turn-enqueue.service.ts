@@ -75,15 +75,7 @@ export class AiTurnEnqueueService {
     jobId: string,
     delayMs: number,
   ): Promise<void> {
-    const state = await this.db.conversationAiState.findUnique({
-      where: { conversationId },
-      select: {
-        agentId: true,
-        turnSeq: true,
-        mode: true,
-        organizationId: true,
-      },
-    });
+    const state = await this.ensureState(conversationId);
     if (!state || state.mode === 'OFF') return;
 
     const turn = await this.db.aiTurn.create({
@@ -111,5 +103,73 @@ export class AiTurnEnqueueService {
         removeOnFail: true,
       },
     );
+  }
+
+  /**
+   * A conversation has no AI state until the AI first becomes relevant to it,
+   * so this creates the row on the first inbound message that an enabled agent
+   * actually covers. Without it nothing ever writes a ConversationAiState, the
+   * enqueue path finds nothing, and the inbox correctly but confusingly reports
+   * the assistant as disabled on every conversation.
+   *
+   * Deliberately does NOT create a row when no agent is enabled or the agent
+   * does not cover this channel: an absent row means "the AI was never in play
+   * here", which is different from "it is paused".
+   */
+  private async ensureState(conversationId: string) {
+    const existing = await this.db.conversationAiState.findUnique({
+      where: { conversationId },
+      select: {
+        agentId: true,
+        turnSeq: true,
+        mode: true,
+        organizationId: true,
+      },
+    });
+    if (existing) return existing;
+
+    const conversation = await this.db.inboxConversation.findFirst({
+      where: { id: conversationId, deletedAt: null },
+      select: {
+        organizationId: true,
+        platform: { select: { code: true } },
+      },
+    });
+    if (!conversation) return null;
+
+    const agent = await this.db.aiAgent.findFirst({
+      where: { organizationId: conversation.organizationId, enabled: true },
+      select: { id: true, enabledPlatformCodes: true },
+    });
+    if (!agent?.enabledPlatformCodes.includes(conversation.platform.code))
+      return null;
+
+    try {
+      return await this.db.conversationAiState.create({
+        data: {
+          conversationId,
+          organizationId: conversation.organizationId,
+          agentId: agent.id,
+        },
+        select: {
+          agentId: true,
+          turnSeq: true,
+          mode: true,
+          organizationId: true,
+        },
+      });
+    } catch {
+      // Two inbound messages for the same new conversation can race here; the
+      // loser simply reads the row the winner created.
+      return this.db.conversationAiState.findUnique({
+        where: { conversationId },
+        select: {
+          agentId: true,
+          turnSeq: true,
+          mode: true,
+          organizationId: true,
+        },
+      });
+    }
   }
 }

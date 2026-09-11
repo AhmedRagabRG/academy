@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { CHANNEL_PROVIDERS } from '../../inbox/channels/channel-credentials.service';
 import {
   AGENT_TOOL_NAMES,
   WRITABLE_CONTACT_FIELDS,
@@ -77,6 +78,19 @@ export class AiAgentService {
         throw new DomainException(
           'platform-unknown',
           `قناة غير معروفة: ${unknown.join('، ')}`,
+          422,
+        );
+      // Only the Meta channels have a real delivery adapter. Everything else
+      // falls through to LocalInboxDeliveryAdapter, which reports 'queued' and
+      // sends nothing — so enabling the AI there would produce replies that
+      // silently reach no one.
+      const undeliverable = dto.enabledPlatformCodes.filter(
+        (code) => !(CHANNEL_PROVIDERS as readonly string[]).includes(code),
+      );
+      if (undeliverable.length)
+        throw new DomainException(
+          'platform-not-deliverable',
+          `لا يمكن تشغيل المساعد على: ${undeliverable.join('، ')}. القنوات المدعومة هي واتساب وماسنجر وإنستغرام.`,
           422,
         );
     }

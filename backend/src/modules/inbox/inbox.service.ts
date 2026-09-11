@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
   ConversationAiState,
@@ -86,6 +86,7 @@ export class AiTurnSuppressed extends Error {
 
 @Injectable()
 export class InboxService {
+  private readonly logger = new Logger(InboxService.name);
   private readonly attachmentTtlMs = 60 * 60 * 1000;
   constructor(
     private readonly repo: InboxRepository,
@@ -844,6 +845,7 @@ export class InboxService {
   }): Promise<{
     status: 'sent' | 'suppressed' | 'failed';
     messageId?: string;
+    error?: string;
   }> {
     const body = input.body.trim();
     if (!body) throw new DomainException('validation', 'نص الرد مطلوب', 422);
@@ -941,13 +943,21 @@ export class InboxService {
       });
       this.realtime.publish();
       return { status: 'sent', messageId: message.id };
-    } catch {
+    } catch (error) {
+      // Returning 'failed' rather than throwing keeps a provider outage from
+      // failing the whole turn, but the reason must not vanish with it: without
+      // this the AiTurn records FAILED with a null errorMessage and there is
+      // nothing anywhere to explain why the customer got no reply.
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `AI reply dispatch failed for conversation ${input.conversationId} (turn ${input.aiTurnId}): ${reason}`,
+      );
       await this.repo.db.inboxMessage.update({
         where: { id: message.id },
         data: { delivery: 'FAILED' },
       });
       this.realtime.publish();
-      return { status: 'failed', messageId: message.id };
+      return { status: 'failed', messageId: message.id, error: reason };
     }
   }
   /**

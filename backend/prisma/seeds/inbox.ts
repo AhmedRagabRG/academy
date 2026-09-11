@@ -19,12 +19,19 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
     take: 2,
   });
   if (!accounts.length) return;
+  /**
+   * Only the Meta channels can actually carry a conversation: they are the
+   * only ones with an inbound webhook and a real delivery adapter. The rest
+   * are kept as rows because contact sources still map to those codes, but
+   * they are retired so they never appear in a channel picker or an inbox
+   * filter — a channel that can neither receive nor send is a trap there.
+   */
   const platformRows = [
-    ['whatsapp', 'واتساب', 'MessageCircle'],
-    ['messenger', 'فيسبوك ماسنجر', 'Facebook'],
-    ['web', 'محادثة الموقع', 'MessageCircle'],
-    ['email', 'البريد الإلكتروني', 'Mail'],
-    ['phone', 'الهاتف', 'Phone'],
+    ['whatsapp', 'واتساب', 'MessageCircle', true],
+    ['messenger', 'فيسبوك ماسنجر', 'Facebook', true],
+    ['web', 'محادثة الموقع', 'MessageCircle', false],
+    ['email', 'البريد الإلكتروني', 'Mail', false],
+    ['phone', 'الهاتف', 'Phone', false],
   ] as const;
   const platforms = [];
   for (let i = 0; i < platformRows.length; i++)
@@ -38,15 +45,19 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
             code: platformRows[i][0],
           },
         },
-        update: {},
+        // active is enforced on update too: a database seeded before these
+        // were retired must not keep offering them.
+        update: { active: platformRows[i][3] },
         create: {
           organizationId: organization.id,
           code: platformRows[i][0],
           label: platformRows[i][1],
           icon: platformRows[i][2],
+          active: platformRows[i][3],
         },
       }),
     );
+  const deliverablePlatforms = platforms.filter((platform) => platform.active);
   const tagRows = [
     ['lead', 'عميل محتمل', 'blue'],
     ['vip', 'VIP', 'violet'],
@@ -121,7 +132,8 @@ export async function seedInbox(prisma: PrismaClient): Promise<void> {
         id: conversationId,
         organizationId: organization.id,
         customerId,
-        platformId: platforms[i % platforms.length].id,
+        // Seeded conversations only land on channels that are actually live.
+        platformId: deliverablePlatforms[i % deliverablePlatforms.length].id,
         status: statuses[i % statuses.length],
         assignedEmployeeId: unassigned
           ? null

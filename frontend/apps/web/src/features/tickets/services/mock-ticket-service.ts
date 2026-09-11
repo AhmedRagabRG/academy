@@ -72,7 +72,7 @@ export const mockTicketService: TicketService = {
   async createTicket(input, actor) {
     requirePermission(actor, ticketPermissions.create); const parsed = createTicketSchema.parse(input)
     return ticketRepository.mutate((state) => {
-      const now = new Date().toISOString(); const ticket: Ticket = { ...parsed, teamId: parsed.teamId as TeamId | undefined, id: crypto.randomUUID() as TicketId, number: `TKT-${1050 + state.tickets.length}`, lastActiveStatus: parsed.status, createdBy: actor.userId as UserId, createdAt: now, updatedAt: now, version: 1 }
+      const now = new Date().toISOString(); const ticket: Ticket = { ...parsed, teamId: parsed.teamId as TeamId | undefined, id: crypto.randomUUID() as TicketId, number: `TKT-${1050 + state.tickets.length}`, lastActiveStatus: parsed.status, branchId: null, createdBy: actor.userId as UserId, createdAt: now, updatedAt: now, version: 1 }
       state.tickets.push(ticket); state.activity.push(event(ticket, actor, "created", "تم إنشاء التذكرة")); return toDetail(ticket, actor, state)
     })
   },

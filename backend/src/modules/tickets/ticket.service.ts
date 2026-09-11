@@ -89,21 +89,20 @@ export class TicketService {
     c: CallerContext,
     references?: ProjectionReferences,
   ) {
-    const [team, employee] =
-      await Promise.all([
-        row.teamId && !references
-          ? this.repo.db.ticketTeam.findUnique({
-              where: { id: row.teamId },
-              select: { name: true },
-            })
-          : null,
-        row.employeeId && !references
-          ? this.repo.db.account.findUnique({
-              where: { id: row.employeeId },
-              select: { displayName: true },
-            })
-          : null,
-      ]);
+    const [team, employee] = await Promise.all([
+      row.teamId && !references
+        ? this.repo.db.ticketTeam.findUnique({
+            where: { id: row.teamId },
+            select: { name: true },
+          })
+        : null,
+      row.employeeId && !references
+        ? this.repo.db.account.findUnique({
+            where: { id: row.employeeId },
+            select: { displayName: true },
+          })
+        : null,
+    ]);
     return {
       id: row.id,
       organizationId: row.organizationId,
@@ -118,6 +117,10 @@ export class TicketService {
       customerId: row.customerId ?? undefined,
       studentId: row.studentId ?? undefined,
       conversationId: row.conversationId ?? undefined,
+      // Null stays null rather than collapsing to undefined: the assignment UI
+      // has to tell "this ticket belongs to no branch, so anyone may take it"
+      // apart from "the field is missing", and only the former lists everyone.
+      branchId: row.branchId,
       dueAt: row.dueAt?.toISOString(),
       tags: row.tags,
       createdBy: row.createdBy,
@@ -242,21 +245,20 @@ export class TicketService {
       [
         ...new Set(scopedTickets.map((ticket) => ticket[key]).filter(Boolean)),
       ] as string[];
-    const [teams, employees] =
-      await Promise.all([
-        this.repo.db.ticketTeam.findMany({
-          where: {
-            organizationId: org,
-            active: true,
-            id: { in: scopedIds('teamId') },
-          },
-          select: { id: true, name: true },
-        }),
-        this.repo.db.account.findMany({
-          where: { status: 'ACTIVE', id: { in: scopedIds('employeeId') } },
-          select: { id: true, displayName: true },
-        }),
-      ]);
+    const [teams, employees] = await Promise.all([
+      this.repo.db.ticketTeam.findMany({
+        where: {
+          organizationId: org,
+          active: true,
+          id: { in: scopedIds('teamId') },
+        },
+        select: { id: true, name: true },
+      }),
+      this.repo.db.account.findMany({
+        where: { status: 'ACTIVE', id: { in: scopedIds('employeeId') } },
+        select: { id: true, displayName: true, branchIds: true },
+      }),
+    ]);
     const memberships = await this.repo.db.ticketTeamMembership.findMany({
       where: { active: true },
     });
@@ -276,6 +278,10 @@ export class TicketService {
         teamIds: memberships
           .filter((m) => m.employeeId === e.id)
           .map((m) => m.teamId),
+        // Empty means unrestricted, the same as everywhere else branchIds is
+        // read. The assignment UI narrows the list with it; it is not an
+        // authorization decision, which stays in TicketPolicy.scope.
+        branchIds: e.branchIds,
       })),
       customers: [],
       students: [],
@@ -395,11 +401,7 @@ export class TicketService {
     const slice = rows.slice(0, q.pageSize);
     const ids = <K extends keyof Ticket>(key: K) =>
       [...new Set(slice.map((row) => row[key]).filter(Boolean))] as string[];
-    const [
-      teams,
-      employees,
-      counts,
-    ] = await Promise.all([
+    const [teams, employees, counts] = await Promise.all([
       this.repo.db.ticketTeam.findMany({
         where: { id: { in: ids('teamId') } },
         select: { id: true, name: true },

@@ -119,10 +119,15 @@ const mockService: BranchesService = {
     mockBranches.push(branch)
     return Promise.resolve(branch)
   },
+  // Failures reject rather than throwing synchronously, because that is what
+  // the HTTP service does and what every caller is written against. A
+  // synchronous throw escapes a `.catch()` on the returned promise entirely,
+  // so a mock that threw would hide error handling that is genuinely broken.
   update: ({ id, expectedVersion, ...changes }) => {
     const branch = mockBranches.find((b) => b.id === id)
-    if (!branch) throw new Error("Branch not found")
-    if (branch.version !== expectedVersion) throw new Error("Version conflict")
+    if (!branch) return Promise.reject(new Error("Branch not found"))
+    if (branch.version !== expectedVersion)
+      return Promise.reject(new Error("Version conflict"))
     const updated = {
       ...branch,
       ...changes,
@@ -139,7 +144,7 @@ const mockService: BranchesService = {
   accounts: () => Promise.resolve([...mockAccounts]),
   setAccountBranches: (accountId, branchIds) => {
     const account = mockAccounts.find((a) => a.accountId === accountId)
-    if (!account) throw new Error("Account not found")
+    if (!account) return Promise.reject(new Error("Account not found"))
     account.branchIds = branchIds
     return Promise.resolve({ accountId, branchIds })
   },

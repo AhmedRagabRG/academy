@@ -41,7 +41,10 @@ const labels: Record<string, string> = {
   archived: 'مؤرشفة',
 };
 const aggregateInclude = {
-  customer: true,
+  // The contact comes along only for its branch: a conversation has no branch
+  // column of its own and inherits one from the contact, exactly as
+  // InboxPolicy.scope does when it decides visibility.
+  customer: { include: { contact: { select: { branchId: true } } } },
   platform: true,
   assignedEmployee: true,
   assignedTeam: true,
@@ -151,6 +154,10 @@ export class InboxService {
         ? statusWire(row.previousStatus)
         : undefined,
       ai: row.aiState ? this.aiProjection(row.aiState, agentEnabled) : null,
+      // Inherited from the contact, null when there is no contact or the
+      // contact has no branch — which is the "visible to everyone" case, so the
+      // assignment UI must not read it as "no one may be assigned".
+      branchId: row.customer.contact?.branchId ?? null,
       customer: {
         id: row.customer.id,
         name: row.customer.name,
@@ -536,6 +543,10 @@ export class InboxService {
         teamIds: memberships
           .filter((m) => m.employeeId === x.id)
           .map((m) => m.teamId),
+        // Empty means unrestricted, the same as everywhere else branchIds is
+        // read. The assignment UI narrows the list with it; it is not an
+        // authorization decision, which stays in InboxPolicy.scope.
+        branchIds: x.branchIds,
       })),
     };
   }

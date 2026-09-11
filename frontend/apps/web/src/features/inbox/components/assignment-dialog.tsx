@@ -5,6 +5,7 @@ import type { ConversationDetail } from "../types/projections"
 import type { InboxLookups } from "../services/inbox-service"
 import type { EmployeeId, TeamId } from "../types/common"
 import { useInboxManagement } from "../hooks/use-inbox-management"
+import { employeesForBranch } from "@/features/branches/utils/branch-assignment"
 export function AssignmentDialog({
   conversation,
   lookups,
@@ -20,6 +21,14 @@ export function AssignmentDialog({
   )
   const [teamId, setTeam] = useState(conversation.assignedTeamId ?? "")
   const { assign } = useInboxManagement()
+  // Offering an employee who cannot see this conversation's branch would let
+  // someone assign it into a black hole. The already-assigned employee is kept
+  // regardless, so re-saving an untouched dialog cannot silently unassign.
+  const employees = employeesForBranch(
+    lookups.employees,
+    conversation.branchId,
+    conversation.assignedEmployeeId
+  )
   if (!allowed) return null
   return (
     <>
@@ -47,7 +56,7 @@ export function AssignmentDialog({
                 }
               >
                 <option value="">بلا موظف</option>
-                {lookups.employees.map((item) => (
+                {employees.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label}
                   </option>

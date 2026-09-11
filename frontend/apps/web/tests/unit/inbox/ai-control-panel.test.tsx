@@ -53,6 +53,7 @@ const conversation = {
   },
   employee: null,
   team: null,
+  branchId: null,
   tags: [],
   messages: [],
   notes: [],

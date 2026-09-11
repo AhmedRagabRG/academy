@@ -29,7 +29,8 @@ export interface InboxLookups {
   statuses: { id: ConversationStatus; label: string }[]
   tags: { id: string; label: string; color: string }[]
   teams: { id: string; label: string }[]
-  employees: { id: string; label: string }[]
+  /** `branchIds` empty or absent means unrestricted, so assignable anywhere. */
+  employees: { id: string; label: string; branchIds?: string[] }[]
 }
 export interface InboxService {
   list(

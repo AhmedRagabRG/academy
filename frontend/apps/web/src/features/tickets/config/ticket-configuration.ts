@@ -20,10 +20,12 @@ export const ticketConfiguration: TicketConfiguration = {
     { id: "critical", name: "حرجة", tone: "bg-red-100 text-red-800", order: 4 },
   ],
   teams: [{ id: "team-support" as TeamId, name: "فريق الدعم" }, { id: "team-admissions" as TeamId, name: "فريق القبول" }, { id: "team-finance" as TeamId, name: "فريق المالية" }],
+  // branchIds mirror the mock accounts in features/branches: أحمد in Cairo, سارة in Giza, عمر unrestricted.
+  // Keeping them aligned is what makes the assignment filter observable in mock mode instead of a silent no-op.
   employees: [
-    { id: "employee-demo", name: "أحمد محمد", teamIds: ["team-support" as TeamId] },
-    { id: "employee-sara", name: "سارة علي", teamIds: ["team-support" as TeamId, "team-admissions" as TeamId] },
-    { id: "employee-omar", name: "عمر حسن", teamIds: ["team-finance" as TeamId] },
+    { id: "employee-demo", name: "أحمد محمد", teamIds: ["team-support" as TeamId], branchIds: ["branch-cairo"] },
+    { id: "employee-sara", name: "سارة علي", teamIds: ["team-support" as TeamId, "team-admissions" as TeamId], branchIds: ["branch-giza"] },
+    { id: "employee-omar", name: "عمر حسن", teamIds: ["team-finance" as TeamId], branchIds: [] },
   ],
   customers: [{ id: "customer-1", name: "منى محمود" }, { id: "customer-2", name: "خالد إبراهيم" }],
   students: [{ id: "student-1", name: "يوسف أحمد" }, { id: "student-2", name: "ليلى كريم" }],

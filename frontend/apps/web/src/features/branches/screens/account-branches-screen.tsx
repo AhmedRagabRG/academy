@@ -8,9 +8,11 @@ import { EmptyState } from "@/shared/components/states/empty-state"
 import { ErrorState } from "@/shared/components/states/error-state"
 import { LoadingState } from "@/shared/components/states/loading-state"
 import { StatusBadge } from "@/shared/components/feedback/status-badge"
-import { useAccounts, useSetAccountBranches } from "../hooks/use-branches"
-import type { AccountBranchSetting } from "../types/domain"
-import { useBranches } from "../hooks/use-branches"
+import {
+  useAccounts,
+  useBranches,
+  useSetAccountBranches,
+} from "../hooks/use-branches"
 
 export function AccountBranchesScreen() {
   const accounts = useAccounts()

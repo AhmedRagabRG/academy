@@ -23,7 +23,7 @@ import type {
 import type { Page } from "@/shared/api"
 
 interface ApiNamedEntity { id: string; name: string }
-interface ApiEmployee extends ApiNamedEntity { teamIds: string[] }
+interface ApiEmployee extends ApiNamedEntity { teamIds: string[]; branchIds?: string[] }
 
 export interface ApiTicketConfiguration {
   statuses: Array<{ id: string; name: string; order: number }>
@@ -49,6 +49,7 @@ export interface ApiTicket {
   customerId?: string
   studentId?: string
   conversationId?: string
+  branchId?: string | null
   dueAt?: string
   tags: string[]
   createdBy: string
@@ -114,6 +115,8 @@ const ticketBase = (row: ApiTicket) => ({
   customerId: row.customerId,
   studentId: row.studentId,
   conversationId: row.conversationId,
+  // Absent and null both mean "no branch", which is the everyone-can-see case.
+  branchId: row.branchId ?? null,
   dueAt: row.dueAt,
   tags: row.tags ?? [],
   createdBy: row.createdBy as UserId,
@@ -189,5 +192,7 @@ export const toTicketConfiguration = (
   employees: value.employees.map((employee) => ({
     ...employee,
     teamIds: employee.teamIds.map((id) => id as TeamId),
+    // Absent from an older API build means unrestricted, the same as empty.
+    branchIds: employee.branchIds ?? [],
   })),
 })

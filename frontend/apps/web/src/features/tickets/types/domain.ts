@@ -10,7 +10,8 @@ import type {
 } from "./common"
 
 export interface NamedEntity { id: string; name: string }
-export interface Employee extends NamedEntity { teamIds: TeamId[] }
+/** `branchIds` empty means unrestricted — see features/branches/utils/branch-assignment. */
+export interface Employee extends NamedEntity { teamIds: TeamId[]; branchIds: string[] }
 
 export interface Ticket {
   id: TicketId
@@ -25,6 +26,8 @@ export interface Ticket {
   customerId?: string
   studentId?: string
   conversationId?: string
+  /** Null means the ticket belongs to no branch, which everyone can see. */
+  branchId: string | null
   dueAt?: string
   tags: string[]
   createdBy: UserId

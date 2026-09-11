@@ -62,6 +62,15 @@ export const conversations: Conversation[] = customers.map(
       status,
       assignedEmployeeId: employee,
       assignedTeamId: team,
+      // Inherited from the contact, so a customer with no contact yet has none
+      // — every fourth fixture keeps that case, because it is the one where
+      // the assignment list must stay wide open rather than empty.
+      branchId:
+        index % 4 === 3
+          ? null
+          : index % 2 === 0
+            ? "branch-cairo"
+            : "branch-giza",
       tagIds: [
         (
           [

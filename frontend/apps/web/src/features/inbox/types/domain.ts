@@ -29,6 +29,8 @@ export interface Customer {
 export interface Employee extends NamedLookup<EmployeeId> {
   teamIds: TeamId[]
   avatarUrl?: string
+  /** Empty means unrestricted — see features/branches/utils/branch-assignment. */
+  branchIds?: string[]
 }
 
 export type Team = NamedLookup<TeamId>
@@ -124,6 +126,12 @@ export interface Conversation {
   status: ConversationStatus
   assignedEmployeeId: EmployeeId | null
   assignedTeamId: TeamId | null
+  /**
+   * Inherited from the contact behind the customer, because a conversation
+   * arrives on a channel rather than at a location. Null when there is no
+   * contact or the contact has no branch, which means visible to everyone.
+   */
+  branchId: string | null
   tagIds: TagId[]
   unreadCount: number
   lastMessage: string

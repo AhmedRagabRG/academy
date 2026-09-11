@@ -51,6 +51,7 @@ export interface ApiConversation {
   status: ConversationStatus
   assignedEmployeeId: string | null
   assignedTeamId: string | null
+  branchId?: string | null
   tagIds: string[]
   unreadCount: number
   lastMessage: string
@@ -126,6 +127,8 @@ export function toConversation(row: ApiConversation): ConversationDetail {
     platformId: row.platformId as PlatformId,
     assignedEmployeeId: row.assignedEmployeeId as EmployeeId | null,
     assignedTeamId: row.assignedTeamId as TeamId | null,
+    // Absent and null both mean "no branch", which is the everyone-can-see case.
+    branchId: row.branchId ?? null,
     tagIds: row.tagIds as TagId[],
     customer: {
       ...row.customer,
@@ -182,7 +185,12 @@ export function toConversation(row: ApiConversation): ConversationDetail {
 
 export interface ApiLookups extends Omit<InboxLookups, "statuses"> {
   statuses: Array<{ id: string; label: string }>
-  employees: Array<{ id: string; label: string; teamIds?: string[] }>
+  employees: Array<{
+    id: string
+    label: string
+    teamIds?: string[]
+    branchIds?: string[]
+  }>
 }
 
 export const toLookups = (row: ApiLookups): InboxLookups => ({

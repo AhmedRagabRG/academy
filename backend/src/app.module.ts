@@ -14,6 +14,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { StorageModule } from './storage/storage.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
+import { TeamsModule } from './modules/teams/teams.module';
 import { InboxModule } from './modules/inbox/inbox.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { LeadPipelineModule } from './modules/lead-pipeline/lead-pipeline.module';
@@ -48,6 +49,7 @@ import { AiModule } from './modules/ai/ai.module';
     IdentityModule,
     OrganizationModule,
     TicketsModule,
+    TeamsModule,
     InboxModule,
     ContactsModule,
     LeadPipelineModule,

@@ -96,12 +96,18 @@ export class TicketController {
   ) {
     return this.tickets.restore(c, id, d.expectedVersion);
   }
+  /**
+   * expectedVersion is optional here, so a DELETE with no body at all is a
+   * supported call — and that is exactly what the client sends. Nest hands an
+   * absent body through as `undefined` rather than `{}`, so reading a property
+   * off it threw a 500 on every delete.
+   */
   @Delete(':id') @RequirePermissions('tickets.delete') @HttpCode(204) remove(
     @CurrentCaller() c: CallerContext,
     @Param('id') id: string,
-    @Body() d: Partial<VersionDto>,
+    @Body() d?: Partial<VersionDto>,
   ) {
-    return this.tickets.remove(c, id, d.expectedVersion);
+    return this.tickets.remove(c, id, d?.expectedVersion);
   }
   @Get(':id/comments') comments(
     @CurrentCaller() c: CallerContext,

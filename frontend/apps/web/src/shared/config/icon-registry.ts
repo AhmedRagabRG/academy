@@ -34,6 +34,7 @@ export const iconRegistry = {
   pipeline: TrendingUp,
   teams: TeamsIcon,
   tags: TagIcon,
+  branches: Building2,
   ai: Sparkles,
   "ai-knowledge": BookOpenText,
   campaigns: Megaphone,
